@@ -1,0 +1,171 @@
+// src/App.tsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import CustomCursor from './components/ui/CustomCursor';
+import Sidebar from './components/layout/Sidebar';
+import LoginPage from './pages/auth/LoginPage';
+import StudentDashboard from './pages/student/StudentDashboard';
+import FacultyReview from './pages/faculty/FacultyReview';
+import LabDashboard from './pages/lab/LabDashboard';
+import './index.css';
+
+// ── Protected Route wrapper ──
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}> = ({ children, allowedRoles }) => {
+  const { isAuthenticated, user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: '1rem',
+          background: 'var(--bg-primary)',
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            border: '3px solid var(--border-subtle)',
+            borderTop: '3px solid var(--accent-indigo)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    const defaultRoutes: Record<string, string> = {
+      student: '/student',
+      faculty: '/faculty',
+      lab_assistant: '/lab',
+    };
+    return <Navigate to={defaultRoutes[user.role] || '/login'} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// ── App shell with sidebar ──
+const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
+
+  if (!isAuthenticated || isLoginPage) return <>{children}</>;
+
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <main
+        className="main-content"
+        style={{
+          paddingTop: '2rem',
+          marginLeft: 'var(--sidebar-width)',
+          transition: 'margin-left 0.3s ease',
+        }}
+      >
+        {children}
+      </main>
+    </div>
+  );
+};
+
+// ── Root redirect ──
+const RootRedirect: React.FC = () => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  const routes: Record<string, string> = {
+    student: '/student',
+    faculty: '/faculty',
+    lab_assistant: '/lab',
+  };
+  return <Navigate to={routes[user?.role || 'student'] || '/login'} replace />;
+};
+
+const AppRoutes: React.FC = () => {
+  return (
+    <AppShell>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Root redirect */}
+        <Route path="/" element={<RootRedirect />} />
+
+        {/* Student routes */}
+        <Route
+          path="/student/*"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Faculty routes */}
+        <Route
+          path="/faculty/*"
+          element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <FacultyReview />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Lab Assistant routes */}
+        <Route
+          path="/lab/*"
+          element={
+            <ProtectedRoute allowedRoles={['lab_assistant']}>
+              <LabDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppShell>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <CustomCursor />
+        <AppRoutes />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: 'var(--bg-card)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-subtle)',
+              fontFamily: 'var(--font-body)',
+              fontSize: '0.875rem',
+            },
+          }}
+        />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
+export default App;
