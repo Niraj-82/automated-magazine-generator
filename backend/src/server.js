@@ -18,6 +18,7 @@ const userRoutes = require('./routes/users');
 const templateRoutes = require('./routes/templates');
 const generateRoutes = require('./routes/generate');
 const logRoutes = require('./routes/logs');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -84,6 +85,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // ── Health check ──
 app.get('/health', (req, res) => {
