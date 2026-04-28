@@ -4,11 +4,16 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import CustomCursor from './components/ui/CustomCursor';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import Sidebar from './components/layout/Sidebar';
 import LoginPage from './pages/auth/LoginPage';
 import StudentDashboard from './pages/student/StudentDashboard';
+import SubmissionDetail from './pages/student/SubmissionDetail';
+import FacultyDashboard from './pages/faculty/FacultyDashboard';
 import FacultyReview from './pages/faculty/FacultyReview';
 import LabDashboard from './pages/lab/LabDashboard';
+import UserManagement from './pages/lab/UserManagement';
+import NotificationsPage from './pages/shared/NotificationsPage';
 import './index.css';
 
 // ── Protected Route wrapper ──
@@ -109,6 +114,22 @@ const AppRoutes: React.FC = () => {
 
         {/* Student routes */}
         <Route
+          path="/student"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/submissions/:id"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <SubmissionDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/student/*"
           element={
             <ProtectedRoute allowedRoles={['student']}>
@@ -119,15 +140,47 @@ const AppRoutes: React.FC = () => {
 
         {/* Faculty routes */}
         <Route
-          path="/faculty/*"
+          path="/faculty"
+          element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <FacultyDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/faculty/review"
           element={
             <ProtectedRoute allowedRoles={['faculty']}>
               <FacultyReview />
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/faculty/*"
+          element={
+            <ProtectedRoute allowedRoles={['faculty']}>
+              <FacultyDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Lab Assistant routes */}
+        <Route
+          path="/lab"
+          element={
+            <ProtectedRoute allowedRoles={['lab_assistant']}>
+              <LabDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lab/users"
+          element={
+            <ProtectedRoute allowedRoles={['lab_assistant']}>
+              <UserManagement />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/lab/*"
           element={
@@ -137,6 +190,15 @@ const AppRoutes: React.FC = () => {
           }
         />
 
+        {/* Shared routes */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -150,7 +212,9 @@ const App: React.FC = () => {
     <BrowserRouter>
       <AuthProvider>
         <CustomCursor />
-        <AppRoutes />
+        <ErrorBoundary>
+          <AppRoutes />
+        </ErrorBoundary>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -169,3 +233,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

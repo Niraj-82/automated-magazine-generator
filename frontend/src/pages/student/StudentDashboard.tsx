@@ -1,7 +1,10 @@
 // src/pages/student/StudentDashboard.tsx
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Submission, ContentCategory, SubmissionStatus } from '../../types';
+import { submissionService } from '../../services/api';
+import { SkeletonGrid } from '../../components/ui/SkeletonLoader';
 
 // ── Mock submissions for demo ──
 const mockSubmissions: Submission[] = [
@@ -73,13 +76,29 @@ const progressPct = Math.min(100, Math.round(((totalDays - daysLeft) / totalDays
 
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [submissions, setSubmissions] = useState<Submission[]>(mockSubmissions);
+  const navigate = useNavigate();
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loadingSubs, setLoadingSubs] = useState(true);
   const [activeView, setActiveView] = useState<'dashboard' | 'submit'>('dashboard');
   const [form, setForm] = useState({ title: '', content: '', category: 'technical' as ContentCategory });
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState<null | 'uploading' | 'ai_triage' | 'done'>(null);
   const [files, setFiles] = useState<File[]>([]);
+
+  // Fetch submissions from API, fallback to demo data
+  useEffect(() => {
+    (async () => {
+      setLoadingSubs(true);
+      try {
+        const res = await submissionService.getAll({ limit: 50 });
+        const d = res.data.data;
+        if (d && d.data && d.data.length > 0) { setSubmissions(d.data); }
+        else { setSubmissions(mockSubmissions); }
+      } catch { setSubmissions(mockSubmissions); }
+      finally { setLoadingSubs(false); }
+    })();
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -105,35 +124,47 @@ const StudentDashboard: React.FC = () => {
     setSubmitting(true);
     setSubmitStep('uploading');
 
-    await new Promise((r) => setTimeout(r, 1200));
-    setSubmitStep('ai_triage');
-    await new Promise((r) => setTimeout(r, 1800));
-    setSubmitStep('done');
+    try {
+      // Build FormData for API submission
+      const formData = new FormData();
+      formData.append('title', form.title);
+      formData.append('content', form.content);
+      formData.append('category', form.category);
+      files.forEach(f => formData.append('attachments', f));
 
-    const newSub: Submission = {
-      _id: `s${Date.now()}`,
-      title: form.title,
-      content: form.content,
-      category: form.category,
-      status: 'ai_triage',
-      authorId: user!.id,
-      authorName: user!.name,
-      authorRoll: user!.rollNumber || '',
-      department: user!.department || '',
-      attachments: [],
-      version: 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      aiAnalysis: { grammarScore: 82, toneScore: 78, riskLevel: 'clean', riskScore: 8 },
-    };
+      let newSub: Submission | null = null;
+      try {
+        const res = await submissionService.create(formData);
+        newSub = res.data.data || null;
+      } catch {
+        // Demo fallback if API unavailable
+      }
 
-    await new Promise((r) => setTimeout(r, 800));
-    setSubmissions((prev) => [newSub, ...prev]);
-    setForm({ title: '', content: '', category: 'technical' });
-    setFiles([]);
-    setSubmitting(false);
-    setSubmitStep(null);
-    setActiveView('dashboard');
+      setSubmitStep('ai_triage');
+      await new Promise((r) => setTimeout(r, 1800));
+      setSubmitStep('done');
+
+      if (!newSub) {
+        newSub = {
+          _id: `s${Date.now()}`, title: form.title, content: form.content,
+          category: form.category, status: 'ai_triage', authorId: user!.id,
+          authorName: user!.name, authorRoll: user!.rollNumber || '',
+          department: user!.department || '', attachments: [], version: 1,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          aiAnalysis: { grammarScore: 82, toneScore: 78, riskLevel: 'clean', riskScore: 8 },
+        };
+      }
+
+      await new Promise((r) => setTimeout(r, 800));
+      setSubmissions((prev) => [newSub!, ...prev]);
+    } catch { /* silently fail */ }
+    finally {
+      setForm({ title: '', content: '', category: 'technical' });
+      setFiles([]);
+      setSubmitting(false);
+      setSubmitStep(null);
+      setActiveView('dashboard');
+    }
   };
 
   if (!user) return null;

@@ -1,6 +1,8 @@
 // src/pages/faculty/FacultyReview.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Submission, SubmissionStatus } from '../../types';
+import { submissionService } from '../../services/api';
+import { SkeletonCard } from '../../components/ui/SkeletonLoader';
 
 const mockArticles: Submission[] = [
   {
@@ -51,10 +53,25 @@ const highlightText = (text: string, _highlights: GrammarHighlight[]): React.Rea
 };
 
 const FacultyReview: React.FC = () => {
-  const [articles, setArticles] = useState<Submission[]>(mockArticles);
+  const [articles, setArticles] = useState<Submission[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<Submission | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [comment, setComment] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Fetch from API, fallback to mock
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await submissionService.getAll({ limit: 50 });
+        const d = res.data.data;
+        if (d && d.data && d.data.length > 0) { setArticles(d.data); }
+        else { setArticles(mockArticles); }
+      } catch { setArticles(mockArticles); }
+      finally { setLoading(false); }
+    })();
+  }, []);
 
   const grouped = (status: SubmissionStatus) => articles.filter((a) => a.status === status);
 
@@ -69,11 +86,18 @@ const FacultyReview: React.FC = () => {
     setTimeout(() => setSelectedArticle(null), 350);
   };
 
-  const updateStatus = (id: string, status: SubmissionStatus) => {
+  const updateStatus = async (id: string, status: SubmissionStatus) => {
+    // Optimistic update
     setArticles((prev) =>
       prev.map((a) => (a._id === id ? { ...a, status, facultyComment: comment, updatedAt: new Date().toISOString() } : a))
     );
     closeDrawer();
+    // Call API (non-blocking)
+    try {
+      await submissionService.updateStatus(id, status, comment);
+    } catch {
+      // Silently fail in demo mode — optimistic update stays
+    }
   };
 
   return (

@@ -1,6 +1,8 @@
 // src/pages/lab/LabDashboard.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TemplateConfig } from '../../types';
+import { templateService, generateService, getErrorMessage } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const templates: (TemplateConfig & { preview: string })[] = [
   {
@@ -41,20 +43,69 @@ const LabDashboard: React.FC = () => {
   const [genStatus, setGenStatus] = useState<GenStatus>('idle');
   const [genStep, setGenStep] = useState(0);
   const [activeTab, setActiveTab] = useState<'generate' | 'users' | 'logs'>('generate');
+  const [templateList, setTemplateList] = useState<(TemplateConfig & { preview: string })[]>(templates);
+  const [downloadFile, setDownloadFile] = useState<string | null>(null);
+
+  // Fetch templates from API
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await templateService.getAll();
+        const d = res.data.data;
+        if (d && d.length > 0) {
+          setTemplateList(d.map(t => ({ ...t, preview: t.layout === 'two_column' ? '2col' : t.layout === 'gallery' ? 'gallery' : t.layout === 'cover' ? 'cover' : 'single' })));
+        }
+      } catch { /* keep default templates */ }
+    })();
+  }, []);
 
   const startGeneration = async () => {
     setGenStatus('running');
     setGenStep(0);
-    for (let i = 0; i < generationSteps.length; i++) {
-      setGenStep(i);
-      await new Promise((r) => setTimeout(r, 1800));
+    setDownloadFile(null);
+
+    // Try real API generation
+    try {
+      const sel = templateList.find(t => t._id === selectedTemplate);
+      const genPromise = generateService.generate({
+        templateId: selectedTemplate,
+        title: 'Tech Odyssey 2026',
+        department: 'Computer Engineering',
+        volume: 'Vol. XII',
+        year: '2026',
+      });
+
+      // Animate steps while waiting
+      for (let i = 0; i < generationSteps.length; i++) {
+        setGenStep(i);
+        await new Promise((r) => setTimeout(r, 1800));
+      }
+
+      try {
+        const res = await genPromise;
+        if (res.data.data?.filename) setDownloadFile(res.data.data.filename);
+      } catch { /* demo mode — no real PDF */ }
+    } catch {
+      for (let i = 0; i < generationSteps.length; i++) {
+        setGenStep(i);
+        await new Promise((r) => setTimeout(r, 1800));
+      }
     }
     setGenStatus('done');
   };
 
-  const resetGeneration = () => {
-    setGenStatus('idle');
-    setGenStep(0);
+  const handleDownload = async () => {
+    if (!downloadFile) {
+      toast.success('PDF generated (demo mode)');
+      return;
+    }
+    try {
+      const res = await generateService.download(downloadFile);
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url; a.download = downloadFile; a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) { toast.error(getErrorMessage(err)); }
   };
 
   return (
@@ -117,7 +168,7 @@ const LabDashboard: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-              {templates.map((t) => (
+              {templateList.map((t) => (
                 <div
                   key={t._id}
                   data-hoverable
@@ -251,10 +302,10 @@ const LabDashboard: React.FC = () => {
 
                 {genStatus === 'done' && (
                   <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
-                    <button className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }}>
+                    <button className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={handleDownload}>
                       ↓ Download PDF
                     </button>
-                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem' }} onClick={resetGeneration}>
+                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={() => { setGenStatus('idle'); setGenStep(0); setDownloadFile(null); }}>
                       ↺ Regenerate
                     </button>
                   </div>
