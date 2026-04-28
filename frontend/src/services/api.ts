@@ -93,10 +93,16 @@ export const submissionService = {
   getStats: () =>
     api.get<ApiResponse<{
       total: number;
-      byStatus: Record<string, number>;
-      byCategory: Record<string, number>;
-      recent: Submission[];
+      approved: number;
+      needsReview: number;
+      rejected: number;
+      blocked: number;
+      avgGrammarScore: number;
+      avgToneScore: number;
     }>>('/submissions/stats'),
+
+  setLabTemplate: (id: string, templateId: string) =>
+    api.patch<ApiResponse<Submission>>(`/submissions/${id}/template`, { templateId }),
 };
 
 // ── User Service ──
@@ -115,6 +121,9 @@ export const userService = {
 
   create: (data: { name: string; email: string; password: string; role: string; rollNumber?: string; department?: string }) =>
     api.post<ApiResponse<User>>('/auth/register', data),
+
+  createFaculty: (data: { name: string; email: string; password: string; department: string }) =>
+    api.post<ApiResponse<User>>('/users/create-faculty', data),
 };
 
 // ── Notification Service ──

@@ -64,6 +64,8 @@ export interface Submission {
   aiAnalysis?: AIAnalysis;
   facultyComment?: string;
   version: number;
+  chosenTemplate?: ArticleTemplate;
+  labOverrideTemplate?: ArticleTemplate | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -77,6 +79,14 @@ export interface Attachment {
   path: string;
   uploadedAt: string;
 }
+
+export type ArticleTemplate =
+  | 'two_column'
+  | 'single_column'
+  | 'photo_left'
+  | 'photo_right'
+  | 'full_bleed'
+  | 'pull_quote_hero';
 
 export interface TemplateConfig {
   _id: string;

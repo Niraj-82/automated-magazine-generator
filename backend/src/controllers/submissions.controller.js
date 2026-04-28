@@ -253,6 +253,31 @@ const deleteSubmission = async (req, res) => {
   }
 };
 
+const setLabTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.body;
+    const submission = await Submission.findById(req.params.id);
+    if (!submission) {
+      return res.status(404).json({ success: false, error: 'Submission not found.' });
+    }
+
+    submission.labOverrideTemplate = templateId;
+    await submission.save();
+
+    await AuditLog.logAction(
+      'SUBMISSION_TEMPLATE_OVERRIDE',
+      req.user.id,
+      { submissionId: submission._id.toString(), templateId },
+      req.ip
+    );
+
+    return res.status(200).json({ success: true, data: submission });
+  } catch (error) {
+    logger.error(`Set lab template failed: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Failed to set template override.' });
+  }
+};
+
 const getSubmissionStats = async (req, res) => {
   try {
     const match = req.user.role === 'student' ? { authorId: req.user.id } : {};
@@ -274,6 +299,8 @@ const getSubmissionStats = async (req, res) => {
           blocked: {
             $sum: { $cond: [{ $eq: ['$status', 'blocked'] }, 1, 0] },
           },
+          avgGrammarScore: { $avg: '$aiAnalysis.grammarScore' },
+          avgToneScore: { $avg: '$aiAnalysis.toneScore' },
         },
       },
     ]);
@@ -286,6 +313,8 @@ const getSubmissionStats = async (req, res) => {
         rejected: 0,
         needsReview: 0,
         blocked: 0,
+        avgGrammarScore: 0,
+        avgToneScore: 0,
       },
     });
   } catch (error) {
@@ -302,4 +331,5 @@ module.exports = {
   updateSubmission,
   deleteSubmission,
   getSubmissionStats,
+  setLabTemplate,
 };

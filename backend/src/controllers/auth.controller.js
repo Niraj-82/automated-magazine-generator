@@ -8,9 +8,48 @@ const generateToken = (id) => {
   });
 };
 
+// ── 5H: Account lockout — in-memory map (resets on server restart) ──
+// Map<email, { count: number, lockUntil: number | null }>
+const loginAttempts = new Map();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkLockout(email) {
+  const entry = loginAttempts.get(email);
+  if (!entry) return null;
+  if (entry.lockUntil && Date.now() < entry.lockUntil) {
+    const remaining = Math.ceil((entry.lockUntil - Date.now()) / 60000);
+    return remaining;
+  }
+  return null;
+}
+
+function recordFailure(email) {
+  const entry = loginAttempts.get(email) || { count: 0, lockUntil: null };
+  entry.count += 1;
+  if (entry.count >= MAX_ATTEMPTS) {
+    entry.lockUntil = Date.now() + LOCKOUT_MS;
+  }
+  loginAttempts.set(email, entry);
+  return entry.count;
+}
+
+function clearAttempts(email) {
+  loginAttempts.delete(email);
+}
+
 const register = async (req, res) => {
   try {
     const { name, email, password, role, rollNumber, department } = req.body;
+
+    // Self-registration is for students only
+    const requestedRole = role || 'student';
+    if (requestedRole !== 'student') {
+      return res.status(403).json({
+        success: false,
+        error: 'Faculty accounts must be created by an administrator.'
+      });
+    }
 
     // Check if user exists
     const userExists = await User.findOne({ where: { email: email.toLowerCase() } });
@@ -22,12 +61,11 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Create user
     const user = await User.create({
       name,
       email,
       passwordHash,
-      role: role || 'student',
+      role: 'student',
       rollNumber,
       department
     });
@@ -49,15 +87,23 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalEmail = (email || '').toLowerCase();
 
-    // Find user
-    const user = await User.findOne({ where: { email: email.toLowerCase() } });
+    // 5H: Check lockout
+    const lockedMinutes = checkLockout(normalEmail);
+    if (lockedMinutes !== null) {
+      return res.status(429).json({
+        success: false,
+        error: `Account temporarily locked. Try again in ${lockedMinutes} minute(s).`
+      });
+    }
 
-    // Use identical error message for wrong email or password
+    const user = await User.findOne({ where: { email: normalEmail } });
     const invalidMessage = 'Invalid email or password.';
 
     if (!user) {
-      await AuditLog.logAction('USER_LOGIN', null, { email, status: 'failed_not_found' }, req.ip);
+      const count = recordFailure(normalEmail);
+      await AuditLog.logAction('USER_LOGIN', null, { email: normalEmail, status: 'failed_not_found', attempts: count }, req.ip);
       return res.status(401).json({ success: false, error: invalidMessage });
     }
 
@@ -66,17 +112,21 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, error: 'Account has been deactivated.' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!isMatch) {
-      await AuditLog.logAction('USER_LOGIN', user.id, { status: 'failed_wrong_password' }, req.ip);
+      const count = recordFailure(normalEmail);
+      await AuditLog.logAction('USER_LOGIN', user.id, { status: 'failed_wrong_password', attempts: count }, req.ip);
+      if (count >= MAX_ATTEMPTS) {
+        return res.status(429).json({ success: false, error: `Account temporarily locked. Try again in 15 minute(s).` });
+      }
       return res.status(401).json({ success: false, error: invalidMessage });
     }
 
+    // Successful login — clear lockout
+    clearAttempts(normalEmail);
     user.lastLogin = new Date();
     await user.save();
-
     await AuditLog.logAction('USER_LOGIN', user.id, { status: 'success' }, req.ip);
 
     res.status(200).json({
@@ -92,18 +142,11 @@ const login = async (req, res) => {
 };
 
 const verifyToken = async (req, res) => {
-  // auth middleware already verifies the token and sets req.user
-  res.status(200).json({
-    success: true,
-    data: {
-      user: req.user
-    }
-  });
+  res.status(200).json({ success: true, data: { user: req.user } });
 };
 
 const logout = async (req, res) => {
   try {
-    // Client is responsible for deleting the token, but we log the action
     await AuditLog.logAction('USER_LOGOUT', req.user.id, null, req.ip);
     res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
@@ -111,9 +154,4 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = {
-  register,
-  login,
-  verifyToken,
-  logout
-};
+module.exports = { register, login, verifyToken, logout };

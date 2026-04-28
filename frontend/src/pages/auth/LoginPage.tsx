@@ -3,6 +3,7 @@ import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+import ThemeToggle from '../../components/ui/ThemeToggle';
 
 interface RoleConfig {
   id: UserRole;
@@ -141,6 +142,11 @@ export default function LoginPage() {
         position: 'relative',
       }}
     >
+      {/* Theme toggle — top right */}
+      <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 10 }}>
+        <ThemeToggle />
+      </div>
+
       {/* Animated BG orbs */}
       <div
         style={{
@@ -377,7 +383,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>
+          <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
+            New student?{' '}
+            <a href="/register" data-hoverable style={{ color: 'var(--accent-indigo)', fontWeight: 600, cursor: 'none' }}>Create your account →</a>
+          </p>
+
+          <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
             Fr. C. Rodrigues Institute of Technology · Vashi
           </p>
         </div>

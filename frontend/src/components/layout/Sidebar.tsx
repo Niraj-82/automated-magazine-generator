@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import ThemeToggle from '../ui/ThemeToggle';
 
 interface NavItem {
   label: string;
@@ -192,6 +193,13 @@ const Sidebar: React.FC = () => {
         })}
 
       </nav>
+
+      {/* Theme toggle */}
+      {!collapsed && (
+        <div style={{ padding: '0 1rem 0.5rem', display: 'flex', justifyContent: 'center' }}>
+          <ThemeToggle />
+        </div>
+      )}
 
       {/* User profile */}
       <div

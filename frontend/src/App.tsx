@@ -3,10 +3,12 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import CustomCursor from './components/ui/CustomCursor';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import Sidebar from './components/layout/Sidebar';
 import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
 import StudentDashboard from './pages/student/StudentDashboard';
 import SubmissionDetail from './pages/student/SubmissionDetail';
 import FacultyDashboard from './pages/faculty/FacultyDashboard';
@@ -108,6 +110,7 @@ const AppRoutes: React.FC = () => {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
         {/* Root redirect */}
         <Route path="/" element={<RootRedirect />} />
@@ -210,6 +213,7 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <BrowserRouter>
+      <ThemeProvider>
       <AuthProvider>
         <CustomCursor />
         <ErrorBoundary>
@@ -228,6 +232,7 @@ const App: React.FC = () => {
           }}
         />
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 };

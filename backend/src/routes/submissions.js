@@ -21,6 +21,7 @@ router.post('/', requireRole('student'), upload.array('attachments', 5), sanitiz
 router.get('/', getSubmissions);
 router.get('/:id', getById);
 router.patch('/:id/status', requireRole('faculty', 'lab_assistant', 'admin'), sanitizeRequest, updateStatus);
+router.patch('/:id/template', requireRole('lab_assistant', 'admin'), sanitizeRequest, require('../controllers/submissions.controller').setLabTemplate);
 router.patch('/:id', sanitizeRequest, updateSubmission);
 router.delete('/:id', deleteSubmission);
 

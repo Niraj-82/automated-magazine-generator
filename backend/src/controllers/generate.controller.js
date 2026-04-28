@@ -5,9 +5,9 @@
 const path = require('path');
 const fs = require('fs');
 const logger = require('../config/logger');
-const { generateMagazinePDF, listGeneratedPDFs } = require('../services/pdf.generator.service');
+const { generateMagazinePDF } = require('../services/pdf.generator.service');
 
-const outputsDir = path.join(__dirname, '..', '..', 'outputs');
+const outputsDir = path.join(__dirname, '..', '..', 'public', 'generated');
 
 /**
  * POST /api/generate
@@ -124,11 +124,20 @@ const downloadPDF = async (req, res) => {
  */
 const getHistory = async (_req, res) => {
   try {
-    const files = listGeneratedPDFs();
+    if (!fs.existsSync(outputsDir)) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+    const files = fs.readdirSync(outputsDir)
+      .filter(f => f.endsWith('.pdf'))
+      .map(f => {
+        const stat = fs.statSync(path.join(outputsDir, f));
+        return { filename: f, size: stat.size, createdAt: stat.birthtime };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return res.status(200).json({
       success: true,
-      data: files.map((f) => ({
+      data: files.map(f => ({
         filename: f.filename,
         size: f.size,
         sizeFormatted: `${(f.size / (1024 * 1024)).toFixed(2)} MB`,

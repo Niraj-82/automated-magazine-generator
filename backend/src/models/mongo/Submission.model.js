@@ -170,6 +170,17 @@ const submissionSchema = new mongoose.Schema(
       type: [versionHistorySchema],
       default: [],
     },
+    // Improvement 4: Per-article template selection
+    chosenTemplate: {
+      type: String,
+      enum: ['two_column', 'single_column', 'photo_left', 'photo_right', 'full_bleed', 'pull_quote_hero'],
+      default: 'single_column',
+    },
+    labOverrideTemplate: {
+      type: String,
+      enum: ['two_column', 'single_column', 'photo_left', 'photo_right', 'full_bleed', 'pull_quote_hero', null],
+      default: null,
+    },
   },
   {
     timestamps: true,
