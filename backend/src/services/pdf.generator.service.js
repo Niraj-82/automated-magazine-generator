@@ -1,34 +1,13 @@
-// backend/src/services/pdf.generator.service.js
-// ZEPHYR-Style Magazine PDF Layout Engine
 const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
 const { Submission } = require('../models/mongo');
+const { User } = require('../models/sql');
 const logger = require('../config/logger');
 
 const OUTPUT_DIR = path.join(__dirname, '../../public/generated');
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-// ── Layout template definitions ──────────────────────────────────────────────
-const LAYOUTS = {
-  two_column:      { label: '2-Column Tech Article',    cols: 2, pullQuote: true },
-  single_column:   { label: 'Single Column Feature',    cols: 1, pullQuote: false },
-  photo_left:      { label: 'Photo Left Feature',       cols: 2, photoSide: 'left' },
-  photo_right:     { label: 'Photo Right Feature',      cols: 2, photoSide: 'right' },
-  full_bleed:      { label: 'Full-Bleed Cover',         cols: 1, fullBleed: true },
-  pull_quote_hero: { label: 'Pull-Quote Hero',          cols: 1, pullQuote: true, hero: true },
-};
-
-const CATEGORY_ACCENT = {
-  technical:    '#6366F1',
-  sports:       '#06B6D4',
-  cultural:     '#F59E0B',
-  academic:     '#8B5CF6',
-  achievements: '#10B981',
-  department:   '#64748B',
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function escapeHtml(str = '') {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -37,360 +16,259 @@ function escapeHtml(str = '') {
     .replace(/"/g, '&quot;');
 }
 
-function wordCount(text = '') {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function excerpt(text = '', words = 40) {
-  return text.trim().split(/\s+/).slice(0, words).join(' ') + (wordCount(text) > words ? '…' : '');
-}
-
 function chunkParagraphs(text = '') {
   return text.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
 }
 
-// ── Per-article article HTML fragment ────────────────────────────────────────
-function buildArticleHTML(sub, layoutKey = 'single_column', accent = '#6366F1') {
-  const layout = LAYOUTS[layoutKey] || LAYOUTS.single_column;
-  const paras = chunkParagraphs(sub.content || '');
-  const half = Math.ceil(paras.length / 2);
-  const col1 = paras.slice(0, half);
-  const col2 = paras.slice(half);
-  const pullQuotePara = paras[Math.floor(paras.length / 3)] || paras[0] || '';
-  const pullQuoteText = pullQuotePara.trim().split(/\s+/).slice(0, 20).join(' ');
+function buildMagazineHTML(submissions, config, faculty) {
+  const { title, tagline, department, institution, hodName, year, volume, templateId, themeColor } = config;
+  
+  const theme = {
+    bg: templateId === 't2' || templateId === 't4' ? '#ffffff' : '#0a0a0a',
+    text: templateId === 't2' || templateId === 't4' ? '#111' : '#ffffff',
+    accent: templateId === 't2' ? '#4f46e5' : (templateId === 't4' ? '#666' : '#ccc'),
+    cardBg: templateId === 't2' || templateId === 't4' ? '#f8fafc' : '#1e1e1e',
+    customColor: themeColor || '#ccc'
+  };
 
-  const parasHTML = (arr) => arr.map(p =>
-    `<p class="article-para">${escapeHtml(p)}</p>`
-  ).join('');
-
-  let bodyHTML = '';
-
-  if (layout.fullBleed) {
-    bodyHTML = `
-      <div class="full-bleed-hero" style="background:${accent}18; border-left:4px solid ${accent}; padding:1.5rem; margin-bottom:1rem; border-radius:4px;">
-        <p class="hero-lead" style="font-size:1.05rem; font-weight:600; color:${accent}; margin:0 0 0.75rem;">${escapeHtml(excerpt(sub.content, 30))}</p>
-      </div>
-      <div class="article-body">${parasHTML(paras)}</div>`;
-  } else if (layout.pullQuote && layout.hero) {
-    bodyHTML = `
-      <div class="article-body">${parasHTML(col1)}</div>
-      <blockquote class="pull-quote" style="border-left:4px solid ${accent}; background:${accent}10; padding:1rem 1.5rem; margin:1.25rem 0; border-radius:4px;">
-        <span class="pq-text" style="font-size:1.1rem; font-style:italic; color:${accent}; line-height:1.6;">"${escapeHtml(pullQuoteText)}…"</span>
-        <div class="pq-attribution" style="font-size:0.75rem; color:#64748B; margin-top:0.5rem;">— ${escapeHtml(sub.authorName)}</div>
-      </blockquote>
-      <div class="article-body">${parasHTML(col2)}</div>`;
-  } else if (layout.cols === 2) {
-    bodyHTML = `
-      <div class="two-col-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
-        <div class="col">${parasHTML(col1)}</div>
-        <div class="col">
-          ${layout.pullQuote ? `
-          <blockquote class="pull-quote" style="border-left:4px solid ${accent}; background:${accent}10; padding:0.75rem 1rem; margin:0 0 1rem; border-radius:4px; font-style:italic; color:${accent}; font-size:0.95rem;">"${escapeHtml(pullQuoteText)}…"</blockquote>` : ''}
-          ${parasHTML(col2)}
-        </div>
-      </div>`;
-  } else {
-    bodyHTML = `<div class="article-body">${parasHTML(paras)}</div>`;
-  }
-
-  return `
-    <article class="magazine-article" style="margin-bottom:2.5rem; page-break-inside:avoid;">
-      <!-- Article header -->
-      <div class="article-header" style="border-left:5px solid ${accent}; padding-left:1rem; margin-bottom:1rem;">
-        <div class="article-category" style="font-size:0.65rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:${accent}; margin-bottom:0.25rem;">
-          ${escapeHtml(sub.category || 'general')}
-        </div>
-        <h2 class="article-title" style="font-size:1.25rem; font-weight:800; color:#0F172A; margin:0 0 0.25rem; line-height:1.25;">
-          ${escapeHtml(sub.title)}
-        </h2>
-        <div class="article-meta" style="font-size:0.7rem; color:#64748B; display:flex; gap:1rem; flex-wrap:wrap;">
-          <span>✦ ${escapeHtml(sub.authorName)}</span>
-          ${sub.authorRoll ? `<span>Roll: ${escapeHtml(sub.authorRoll)}</span>` : ''}
-          ${sub.department ? `<span>${escapeHtml(sub.department)}</span>` : ''}
-          <span>${wordCount(sub.content)} words</span>
-        </div>
-      </div>
-      <!-- AI summary teaser -->
-      ${sub.aiAnalysis?.teaserParagraph ? `
-        <div class="article-teaser" style="background:${accent}08; border-radius:4px; padding:0.6rem 0.9rem; margin-bottom:0.9rem; font-size:0.8rem; color:#475569; font-style:italic; border:1px solid ${accent}20;">
-          ${escapeHtml(sub.aiAnalysis.teaserParagraph)}
-        </div>` : ''}
-      <!-- Article body -->
-      <div class="article-content" style="font-size:0.82rem; line-height:1.7; color:#1E293B;">
-        ${bodyHTML}
-      </div>
-      ${sub.aiAnalysis ? `
-        <div class="article-scores" style="display:flex; gap:1rem; margin-top:0.75rem; padding-top:0.5rem; border-top:1px solid #E2E8F0;">
-          <span style="font-size:0.65rem; color:#94A3B8;">Grammar: <strong style="color:${accent};">${sub.aiAnalysis.grammarScore}%</strong></span>
-          <span style="font-size:0.65rem; color:#94A3B8;">Tone: <strong style="color:${accent};">${sub.aiAnalysis.toneScore}%</strong></span>
-        </div>` : ''}
-    </article>`;
-}
-
-// ── Section divider ───────────────────────────────────────────────────────────
-function buildSectionDivider(title, accent = '#6366F1') {
-  return `
-    <div class="section-divider" style="display:flex; align-items:center; gap:1rem; margin:2rem 0 1.25rem; page-break-before:always;">
-      <div style="flex:1; height:2px; background:linear-gradient(90deg,${accent},transparent);"></div>
-      <h2 style="font-size:1rem; font-weight:700; color:${accent}; text-transform:uppercase; letter-spacing:0.15em; white-space:nowrap; margin:0;">${escapeHtml(title)}</h2>
-      <div style="flex:1; height:2px; background:linear-gradient(270deg,${accent},transparent);"></div>
-    </div>`;
-}
-
-// ── Table of contents ─────────────────────────────────────────────────────────
-function buildTOC(groupedArticles) {
-  const rows = Object.entries(groupedArticles).map(([cat, articles]) => {
-    const accent = CATEGORY_ACCENT[cat] || '#6366F1';
-    return `
-      <div style="margin-bottom:0.6rem;">
-        <div style="font-size:0.65rem; font-weight:700; text-transform:uppercase; color:${accent}; margin-bottom:0.25rem; letter-spacing:0.1em;">${escapeHtml(cat)}</div>
-        ${articles.map(a => `
-          <div style="display:flex; justify-content:space-between; padding:0.2rem 0; border-bottom:1px dotted #E2E8F0; font-size:0.78rem; color:#475569;">
-            <span>${escapeHtml(a.title)}</span>
-            <span style="color:#94A3B8; font-size:0.7rem;">${escapeHtml(a.authorName)}</span>
-          </div>`).join('')}
-      </div>`;
-  }).join('');
-
-  return `
-    <div class="toc-section" style="margin-bottom:2rem; padding:1.25rem; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">
-      <h2 style="font-size:0.85rem; font-weight:700; color:#0F172A; margin:0 0 1rem; text-transform:uppercase; letter-spacing:0.12em;">Table of Contents</h2>
-      ${rows}
-    </div>`;
-}
-
-// ── Cover page HTML ───────────────────────────────────────────────────────────
-function buildCoverHTML(config) {
-  const { title, department, volume, year, submissionCount, approvedCount } = config;
-  return `
-    <div class="cover-page" style="
-      min-height:100vh; display:flex; flex-direction:column;
-      justify-content:center; align-items:center;
-      background:linear-gradient(135deg,#0F172A 0%,#1E293B 60%,#0F172A 100%);
-      page-break-after:always; position:relative; overflow:hidden; padding:4rem 3rem;
-    ">
-      <!-- Background decorative shapes -->
-      <div style="position:absolute; top:-80px; right:-80px; width:400px; height:400px; border-radius:50%; background:rgba(99,102,241,0.12); pointer-events:none;"></div>
-      <div style="position:absolute; bottom:-60px; left:-60px; width:300px; height:300px; border-radius:50%; background:rgba(6,182,212,0.08); pointer-events:none;"></div>
-
-      <!-- Institute name -->
-      <div style="text-align:center; margin-bottom:2.5rem;">
-        <div style="font-size:0.7rem; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:#94A3B8; margin-bottom:0.5rem;">
-          Fr. C. Rodrigues Institute of Technology
-        </div>
-        <div style="font-size:0.65rem; letter-spacing:0.15em; color:#64748B; text-transform:uppercase;">
-          Vashi, Navi Mumbai · ${escapeHtml(department || 'Computer Engineering')}
-        </div>
-      </div>
-
-      <!-- Magazine logo / icon -->
-      <div style="margin-bottom:1.5rem;">
-        <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="80" height="80" rx="20" fill="rgba(99,102,241,0.15)" stroke="#6366F1" stroke-width="1.5"/>
-          <rect x="12" y="12" width="30" height="56" rx="4" fill="rgba(99,102,241,0.3)"/>
-          <rect x="46" y="12" width="22" height="56" rx="4" fill="rgba(6,182,212,0.2)"/>
-          <rect x="16" y="20" width="22" height="3" rx="1.5" fill="#6366F1" opacity="0.8"/>
-          <rect x="16" y="27" width="18" height="2" rx="1" fill="#6366F1" opacity="0.4"/>
-          <rect x="16" y="33" width="20" height="2" rx="1" fill="#6366F1" opacity="0.4"/>
-        </svg>
-      </div>
-
-      <!-- Title -->
-      <h1 style="font-size:3.5rem; font-weight:900; text-align:center; line-height:1.05; margin:0 0 0.5rem; letter-spacing:-0.02em;
-        background:linear-gradient(135deg,#6366F1,#06B6D4);
-        -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">
-        ${escapeHtml(title || 'Tech Odyssey')}
-      </h1>
-      <div style="font-size:1.5rem; font-weight:300; color:#94A3B8; text-align:center; margin-bottom:2rem;">
-        ${escapeHtml(year || new Date().getFullYear().toString())} Edition
-      </div>
-
-      <!-- Divider line -->
-      <div style="width:120px; height:2px; background:linear-gradient(90deg,transparent,#6366F1,transparent); margin-bottom:2rem;"></div>
-
-      <!-- Volume + stats -->
-      <div style="display:flex; gap:2.5rem; justify-content:center; margin-bottom:2.5rem;">
-        ${[
-          { label: 'Volume', value: volume || 'Vol. XII' },
-          { label: 'Articles', value: String(approvedCount || 0) },
-          { label: 'Year', value: String(year || new Date().getFullYear()) },
-        ].map(s => `
-          <div style="text-align:center;">
-            <div style="font-size:1.6rem; font-weight:800; color:#F1F5F9;">${escapeHtml(s.value)}</div>
-            <div style="font-size:0.65rem; text-transform:uppercase; letter-spacing:0.12em; color:#64748B; margin-top:0.25rem;">${escapeHtml(s.label)}</div>
-          </div>`).join('')}
-      </div>
-
-      <!-- Bottom bar -->
-      <div style="position:absolute; bottom:0; left:0; right:0; height:4px; background:linear-gradient(90deg,#6366F1,#06B6D4,#8B5CF6);"></div>
-      <div style="position:absolute; bottom:1rem; left:0; right:0; text-align:center; font-size:0.6rem; color:#475569; letter-spacing:0.1em; text-transform:uppercase;">
-        AI-Powered Editorial Pipeline · Tech Odyssey ${escapeHtml(String(year || new Date().getFullYear()))}
-      </div>
-    </div>`;
-}
-
-// ── Full magazine HTML ────────────────────────────────────────────────────────
-function buildMagazineHTML(submissions, config) {
-  const approved = submissions.filter(s => s.status === 'approved');
-
-  // Group by category
+  // Group submissions
   const grouped = {};
-  const catOrder = ['technical', 'academic', 'achievements', 'sports', 'cultural', 'department'];
-  catOrder.forEach(cat => { grouped[cat] = []; });
-  approved.forEach(sub => {
+  submissions.forEach(sub => {
     const cat = sub.category || 'department';
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(sub);
   });
-  // Remove empty categories
-  Object.keys(grouped).forEach(k => { if (!grouped[k].length) delete grouped[k]; });
 
-  const categoryLabels = {
-    technical: 'Technical Articles',
-    academic: 'Academic Excellence',
-    achievements: 'Achievements & Awards',
-    sports: 'Sports & Fitness',
-    cultural: 'Cultural Events',
-    department: 'Department News',
-  };
+  const catOrder = ['technical', 'sports', 'cultural', 'academic', 'department', 'achievements'];
 
-  let sectionsHTML = '';
-  Object.entries(grouped).forEach(([cat, articles]) => {
-    const accent = CATEGORY_ACCENT[cat] || '#6366F1';
-    sectionsHTML += buildSectionDivider(categoryLabels[cat] || cat, accent);
-    articles.forEach(sub => {
-      const layoutKey = sub.labOverrideTemplate || sub.chosenTemplate || 'single_column';
-      sectionsHTML += buildArticleHTML(sub, layoutKey, accent);
-    });
+  // A. Cover Page
+  const coverHTML = `
+    <div style="page-break-after:always; position:relative; width:100%; height:100vh; background:#000; overflow:hidden; display:flex; flex-direction:column;">
+      <div style="position:absolute; inset:0; background:linear-gradient(135deg, ${theme.customColor}40, #000 80%);"></div>
+      <div style="position:absolute; top:2rem; left:2rem; background:rgba(255,255,255,0.1); padding:0.5rem 1rem; border-radius:4px;">
+        <span style="color:#fff; font-family:'Space Mono', monospace; font-size:0.8rem; letter-spacing:0.1em;">${escapeHtml(institution)}</span>
+      </div>
+      <div style="position:absolute; top:2rem; right:2rem;">
+        <span style="color:#fff; font-family:'Space Mono', monospace; font-size:0.8rem; font-style:italic;">${escapeHtml(year)}</span>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:10; padding:4rem;">
+        <h1 style="font-family:'Bebas Neue', cursive; font-size:8rem; color:#fff; line-height:0.9; margin:0; text-align:center; letter-spacing:0.02em;">${escapeHtml(title).toUpperCase()}</h1>
+        <div style="font-family:'Space Mono', monospace; font-size:1.2rem; color:${theme.customColor}; margin-top:2rem; letter-spacing:0.2em; text-transform:uppercase;">${escapeHtml(volume)}</div>
+      </div>
+      <div style="position:absolute; bottom:2rem; left:2rem; max-width:50%; z-index:10;">
+        <div style="font-family:'Crimson Text', serif; font-size:1.5rem; font-style:italic; color:#ccc;">"${escapeHtml(tagline)}"</div>
+      </div>
+      <div style="position:absolute; bottom:2rem; right:2rem; text-align:right; z-index:10;">
+        <div style="font-family:'Bebas Neue', cursive; font-size:1.5rem; color:#fff; letter-spacing:0.05em;">${escapeHtml(department)}</div>
+        <div style="font-family:'Space Mono', monospace; font-size:0.7rem; color:${theme.customColor}; letter-spacing:0.1em; margin-top:0.25rem;">DEPARTMENT BADGE</div>
+      </div>
+    </div>
+  `;
+
+  // B. Table of Contents
+  let tocRows = '';
+  let sectionIndex = 1;
+  catOrder.forEach(cat => {
+    if (grouped[cat]) {
+      tocRows += `
+        <div style="margin-bottom:1.5rem;">
+          <div style="font-family:'Bebas Neue', cursive; font-size:1.5rem; color:${theme.customColor}; letter-spacing:0.05em; border-bottom:1px solid #333; padding-bottom:0.25rem; margin-bottom:0.5rem;">
+            ${String(sectionIndex).padStart(2, '0')} — ${cat.toUpperCase()}
+          </div>
+          ${grouped[cat].map(a => `
+            <div style="display:flex; justify-content:space-between; font-family:'Space Mono', monospace; font-size:0.8rem; margin-bottom:0.4rem; color:${theme.text}; opacity:0.8;">
+              <span>${escapeHtml(a.title)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      sectionIndex++;
+    }
   });
 
-  const approvedCount = approved.length;
+  const tocHTML = `
+    <div style="page-break-after:always; width:100%; height:100vh; display:flex; background:${theme.bg}; color:${theme.text};">
+      <div style="flex:0 0 40%; background:#000; padding:4rem 3rem; overflow-y:auto; color:#fff;">
+        <h2 style="font-family:'Bebas Neue', cursive; font-size:3.5rem; margin-bottom:3rem; letter-spacing:0.05em; color:#fff;">CONTENTS</h2>
+        ${tocRows}
+      </div>
+      <div style="flex:0 0 60%; background:linear-gradient(45deg, #222, #111); display:flex; align-items:flex-end; padding:2rem;">
+        <div style="font-family:'Space Mono', monospace; font-size:0.7rem; color:#888; text-transform:uppercase; letter-spacing:0.2em; transform:rotate(-90deg); transform-origin:left bottom;">Architectural Element</div>
+      </div>
+    </div>
+  `;
+
+  // C. HOD Message
+  const hodHTML = `
+    <div style="page-break-after:always; width:100%; min-height:100vh; padding:6rem 4rem; background:${theme.bg}; color:${theme.text}; display:flex; align-items:center; gap:4rem;">
+      <div style="flex:0 0 35%; display:flex; flex-direction:column; align-items:center;">
+        <div style="width:250px; height:250px; border-radius:50%; background:#333; border:4px solid ${theme.customColor}; margin-bottom:2rem;"></div>
+        <div style="font-family:'Bebas Neue', cursive; font-size:2rem; letter-spacing:0.05em;">${escapeHtml(hodName)}</div>
+        <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase; margin-top:0.5rem; text-align:center;">Head of Department<br/>${escapeHtml(department)}</div>
+      </div>
+      <div style="flex:1;">
+        <h2 style="font-family:'Crimson Text', serif; font-size:2.5rem; font-style:italic; margin-bottom:2rem; color:${theme.customColor};">Message from the Desk</h2>
+        <div style="font-family:'Crimson Text', serif; font-size:1.1rem; line-height:1.8; text-align:justify;">
+          <p style="margin-bottom:1rem;">Welcome to the ${escapeHtml(volume)} of ${escapeHtml(title)}. It gives me immense pleasure to present this edition, which reflects the technical prowess, creativity, and dedication of our students and faculty.</p>
+          <p style="margin-bottom:1rem;">In an era of rapid technological advancement, it is crucial to stay abreast of the latest developments. This magazine serves as a platform to share knowledge, showcase achievements, and inspire innovation. The diverse range of articles, from deep technical dives to cultural event highlights, is a testament to the holistic development we strive for at ${escapeHtml(institution)}.</p>
+          <p style="margin-bottom:1rem;">I commend the editorial team and all contributors for their hard work. May this edition ignite new ideas and encourage continuous learning.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // D & E & G. Section Headers and Article Pages
+  let bodyHTML = '';
+  catOrder.forEach(cat => {
+    if (grouped[cat]) {
+      // D. Section Header Page
+      bodyHTML += `
+        <div style="page-break-after:always; width:100%; height:100vh; background:#111; display:flex; justify-content:center; align-items:center; position:relative; overflow:hidden;">
+          <div style="position:absolute; inset:0; background:repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px);"></div>
+          <h1 style="font-family:'Bebas Neue', cursive; font-size:6rem; color:#fff; letter-spacing:0.15em; text-transform:uppercase; text-align:center; position:relative; z-index:10; border-top:2px solid ${theme.customColor}; border-bottom:2px solid ${theme.customColor}; padding:1rem 4rem;">
+            ${escapeHtml(cat)}
+          </h1>
+        </div>
+      `;
+
+      // E. Article Pages / G. Achievements
+      if (cat === 'achievements') {
+        // G. Achievements Grid
+        bodyHTML += `
+          <div style="page-break-after:always; width:100%; min-height:100vh; padding:4rem; background:${theme.bg}; color:${theme.text};">
+            <h2 style="font-family:'Bebas Neue', cursive; font-size:3rem; margin-bottom:2rem; border-bottom:1px solid #333; padding-bottom:0.5rem;">HALL OF FAME</h2>
+            <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:2rem;">
+              ${grouped[cat].map(a => `
+                <div style="background:${theme.cardBg}; border-radius:8px; overflow:hidden;">
+                  <div style="height:200px; background:#333;"></div>
+                  <div style="padding:1.5rem;">
+                    <h3 style="font-family:'Bebas Neue', cursive; font-size:1.5rem; margin-bottom:0.5rem; letter-spacing:0.02em;">${escapeHtml(a.title)}</h3>
+                    <div style="font-family:'Crimson Text', serif; font-size:0.9rem; line-height:1.5; margin-bottom:1rem;">${escapeHtml(a.content.substring(0, 120))}...</div>
+                    <div style="font-family:'Space Mono', monospace; font-size:0.7rem; color:${theme.customColor}; text-transform:uppercase;">${escapeHtml(a.authorName)}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        // Regular Articles
+        grouped[cat].forEach(sub => {
+          const layout = sub.labOverrideTemplate || sub.chosenTemplate || 'single_column';
+          const paras = chunkParagraphs(sub.content);
+          
+          let contentHtml = '';
+          if (layout === 'two_column') {
+            const half = Math.ceil(paras.length / 2);
+            contentHtml = `
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem; font-family:'Crimson Text', serif; font-size:1.05rem; line-height:1.7; text-align:justify;">
+                <div>${paras.slice(0, half).map(p => `<p style="margin-bottom:1rem;">${escapeHtml(p)}</p>`).join('')}</div>
+                <div>${paras.slice(half).map(p => `<p style="margin-bottom:1rem;">${escapeHtml(p)}</p>`).join('')}</div>
+              </div>
+            `;
+          } else if (layout === 'pull_quote_hero') {
+            const quote = paras[0] || '';
+            const rest = paras.slice(1);
+            contentHtml = `
+              <div style="font-family:'Crimson Text', serif; font-size:1.05rem; line-height:1.7; text-align:justify; max-width:800px; margin:0 auto;">
+                <div style="font-size:1.5rem; font-style:italic; text-align:center; color:${theme.customColor}; margin:2rem 0; padding:2rem; border-top:1px solid #333; border-bottom:1px solid #333;">
+                  "${escapeHtml(quote)}"
+                </div>
+                ${rest.map(p => `<p style="margin-bottom:1rem;">${escapeHtml(p)}</p>`).join('')}
+              </div>
+            `;
+          } else {
+            contentHtml = `
+              <div style="font-family:'Crimson Text', serif; font-size:1.05rem; line-height:1.7; text-align:justify; max-width:800px; margin:0 auto;">
+                ${paras.map(p => `<p style="margin-bottom:1rem;">${escapeHtml(p)}</p>`).join('')}
+              </div>
+            `;
+          }
+
+          bodyHTML += `
+            <div style="page-break-after:always; width:100%; min-height:100vh; padding:4rem; background:${theme.bg}; color:${theme.text}; position:relative;">
+              <div style="position:absolute; top:4rem; right:4rem; width:120px; height:120px; border-radius:50%; background:${theme.cardBg}; border:2px solid ${theme.customColor}; overflow:hidden; display:flex; justify-content:center; align-items:center;">
+                <span style="font-family:'Space Mono', monospace; font-size:0.7rem; color:#888;">PHOTO</span>
+              </div>
+              
+              <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:1rem;">
+                ${escapeHtml(cat)}
+              </div>
+              <h1 style="font-family:'Bebas Neue', cursive; font-size:4rem; line-height:1; margin-bottom:1rem; max-width:70%;">
+                ${escapeHtml(sub.title)}
+              </h1>
+              <div style="font-family:'Space Mono', monospace; font-size:0.8rem; margin-bottom:3rem; padding-bottom:1rem; border-bottom:1px solid #333; display:flex; gap:2rem;">
+                <span>BY <span style="color:${theme.customColor};">${escapeHtml(sub.authorName).toUpperCase()}</span></span>
+                ${sub.authorRoll ? `<span>ROLL: ${escapeHtml(sub.authorRoll)}</span>` : ''}
+              </div>
+              
+              ${contentHtml}
+            </div>
+          `;
+        });
+      }
+    }
+  });
+
+  // F. Faculty Profiles
+  const facultyHTML = `
+    <div style="page-break-after:always; width:100%; min-height:100vh; padding:4rem; background:${theme.bg}; color:${theme.text};">
+      <h2 style="font-family:'Bebas Neue', cursive; font-size:4rem; margin-bottom:3rem; text-align:center; letter-spacing:0.05em;">OUR MENTORS</h2>
+      <div style="display:flex; flex-direction:column; gap:3rem; max-width:800px; margin:0 auto;">
+        ${faculty.map((f, i) => `
+          <div style="display:flex; align-items:center; gap:2rem; flex-direction:${i % 2 === 0 ? 'row' : 'row-reverse'};">
+            <div style="width:150px; height:150px; border-radius:50%; background:#333; border:3px solid ${theme.customColor}; flex-shrink:0;"></div>
+            <div style="background:${theme.cardBg}; padding:1.5rem 2rem; border-radius:50px; flex:1; display:flex; flex-direction:column; justify-content:center;">
+              <div style="font-family:'Bebas Neue', cursive; font-size:1.8rem; letter-spacing:0.02em; margin-bottom:0.25rem;">${escapeHtml(f.name)}</div>
+              <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase;">${escapeHtml(f.department || department)}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // H. Back Cover
+  const backCoverHTML = `
+    <div style="page-break-after:avoid; width:100%; height:100vh; background:#000; color:#fff; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:4rem;">
+      <h2 style="font-family:'Bebas Neue', cursive; font-size:3rem; margin-bottom:1rem; letter-spacing:0.1em;">THANK YOU</h2>
+      <div style="width:60px; height:2px; background:${theme.customColor}; margin-bottom:2rem;"></div>
+      <div style="font-family:'Crimson Text', serif; font-size:1.2rem; font-style:italic; color:#ccc; max-width:600px; margin-bottom:4rem;">
+        To all the contributors, editors, and faculty members who made this edition possible.
+      </div>
+      <div style="font-family:'Space Mono', monospace; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.2em; color:#888;">
+        ${escapeHtml(institution)}
+      </div>
+    </div>
+  `;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(config.title || 'Tech Odyssey')} ${escapeHtml(String(config.year || ''))}</title>
+  <title>${escapeHtml(title)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&display=swap');
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif;
-      background: #ffffff;
-      color: #1E293B;
-      line-height: 1.6;
-      font-size: 14px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-      font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
-    }
-
-    .page-wrapper {
-      max-width: 210mm;
-      margin: 0 auto;
-      padding: 12mm 14mm;
-    }
-
-    .magazine-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-bottom: 0.75rem;
-      border-bottom: 2px solid #6366F1;
-      margin-bottom: 1.5rem;
-    }
-
-    .mag-header-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: #6366F1;
-    }
-
-    .mag-header-meta {
-      font-size: 0.65rem;
-      color: #94A3B8;
-    }
-
-    .article-para {
-      margin-bottom: 0.7rem;
-      text-align: justify;
-      hyphens: auto;
-    }
-
-    .toc-section { break-inside: avoid; }
-    .magazine-article { break-inside: avoid; }
-
-    .magazine-footer {
-      text-align: center;
-      font-size: 0.6rem;
-      color: #94A3B8;
-      padding-top: 1rem;
-      border-top: 1px solid #E2E8F0;
-      margin-top: 2rem;
-    }
-
-    @page {
-      size: A4;
-      margin: 15mm 14mm;
-    }
-
-    @media print {
-      .cover-page { page-break-after: always; }
-      .section-divider { page-break-before: always; }
-    }
+    body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4; margin: 0; }
   </style>
 </head>
 <body>
-
-  <!-- COVER PAGE -->
-  ${buildCoverHTML({ ...config, approvedCount })}
-
-  <!-- INNER PAGES -->
-  <div class="page-wrapper">
-
-    <!-- Running header -->
-    <div class="magazine-header">
-      <span class="mag-header-title">${escapeHtml(config.title || 'Tech Odyssey')} · ${escapeHtml(String(config.year || ''))}</span>
-      <span class="mag-header-meta">${escapeHtml(config.volume || '')} · ${escapeHtml(config.department || 'Computer Engineering')}</span>
-    </div>
-
-    <!-- Table of Contents -->
-    ${buildTOC(grouped)}
-
-    <!-- Article sections -->
-    ${sectionsHTML}
-
-    <!-- Footer -->
-    <div class="magazine-footer">
-      <p>Fr. C. Rodrigues Institute of Technology · Vashi, Navi Mumbai · ${escapeHtml(String(config.year || new Date().getFullYear()))}</p>
-      <p style="margin-top:0.25rem;">Generated by Tech Odyssey AI Editorial Pipeline &middot; ${approvedCount} articles</p>
-    </div>
-
-  </div>
+  ${coverHTML}
+  ${tocHTML}
+  ${hodHTML}
+  ${bodyHTML}
+  ${facultyHTML}
+  ${backCoverHTML}
 </body>
 </html>`;
 }
 
-// ── PDF generation entry point ────────────────────────────────────────────────
 async function generateMagazinePDF(config = {}) {
-  const {
-    title = 'Tech Odyssey',
-    department = 'Computer Engineering',
-    volume = 'Vol. XII',
-    year = String(new Date().getFullYear()),
-    templateId,
-  } = config;
+  const { year = String(new Date().getFullYear()) } = config;
 
-  // Fetch approved submissions from MongoDB
   let submissions = [];
   try {
     submissions = await Submission.find({ status: 'approved' }).lean();
@@ -398,19 +276,20 @@ async function generateMagazinePDF(config = {}) {
     logger.error('PDF: Failed to fetch submissions: ' + err.message);
   }
 
-  const html = buildMagazineHTML(submissions, { title, department, volume, year, templateId });
+  let faculty = [];
+  try {
+    faculty = await User.findAll({ where: { role: 'faculty', isActive: true }, attributes: ['name', 'department'], raw: true });
+  } catch (err) {
+    logger.error('PDF: Failed to fetch faculty: ' + err.message);
+  }
 
-  // Launch puppeteer and render PDF
+  const html = buildMagazineHTML(submissions, config, faculty);
+
   let browser;
   try {
     browser = await puppeteer.launch({
       headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
 
     const page = await browser.newPage();
@@ -424,13 +303,12 @@ async function generateMagazinePDF(config = {}) {
       path: outputPath,
       format: 'A4',
       printBackground: true,
-      margin: { top: '15mm', bottom: '15mm', left: '14mm', right: '14mm' },
+      margin: { top: 0, bottom: 0, left: 0, right: 0 },
       displayHeaderFooter: false,
     });
 
-    logger.info(`PDF generated: ${filename} (${submissions.length} submissions)`);
+    logger.info(`PDF generated: ${filename}`);
     return { filename, path: outputPath };
-
   } catch (err) {
     logger.error('PDF generation failed: ' + err.message);
     throw err;
@@ -439,10 +317,7 @@ async function generateMagazinePDF(config = {}) {
   }
 }
 
-// ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   generateMagazinePDF,
-  buildMagazineHTML,   // exposed for tests / preview endpoint
-  buildArticleHTML,
-  LAYOUTS,
+  buildMagazineHTML,
 };

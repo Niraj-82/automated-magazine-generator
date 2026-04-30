@@ -13,16 +13,20 @@ const AuditLog = sequelize.define('AuditLog', {
     allowNull: true, // Allow null for system actions
   },
   action: {
-    type: DataTypes.ENUM(
-      'USER_REGISTER', 'USER_LOGIN', 'USER_LOGOUT', 'USER_UPDATE', 'USER_DEACTIVATE',
-      'SUBMISSION_CREATE', 'SUBMISSION_UPDATE', 'SUBMISSION_DELETE', 'SUBMISSION_STATUS_CHANGE',
-      'TEMPLATE_CREATE', 'TEMPLATE_UPDATE', 'TEMPLATE_DELETE',
-      'PDF_GENERATE', 'PDF_DOWNLOAD', 'SYSTEM_ERROR'
-    ),
+    type: DataTypes.STRING,
     allowNull: false,
+    validate: {
+      isIn: [[
+        'USER_REGISTER', 'USER_LOGIN', 'USER_LOGOUT', 'USER_UPDATE', 'USER_DEACTIVATE',
+        'SUBMISSION_CREATE', 'SUBMISSION_UPDATE', 'SUBMISSION_DELETE', 'SUBMISSION_STATUS_CHANGE',
+        'SUBMISSION_TEMPLATE_OVERRIDE', 'MAGAZINE_GENERATE',
+        'TEMPLATE_CREATE', 'TEMPLATE_UPDATE', 'TEMPLATE_DELETE',
+        'PDF_GENERATE', 'PDF_DOWNLOAD', 'SYSTEM_ERROR'
+      ]],
+    },
   },
   details: {
-    type: DataTypes.JSONB,
+    type: DataTypes.JSON,
     allowNull: true,
   },
   ipAddress: {

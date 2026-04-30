@@ -21,13 +21,7 @@ const statusCfg: Record<SubmissionStatus, { label: string; color: string; bg: st
   blocked: { label: 'Blocked', color: 'var(--status-blocked)', bg: 'var(--status-blocked-bg)' },
 };
 
-const demoSubs: Submission[] = [
-  { _id:'d1',title:'Quantum Computing Fundamentals',content:'Quantum computing exploration...',category:'technical',status:'needs_review',authorId:'stu_002',authorName:'Priya Menon',authorRoll:'TE-CE-018',department:'Computer Engineering',attachments:[],version:1,createdAt:new Date(Date.now()-6*3600000).toISOString(),updatedAt:new Date(Date.now()-3600000).toISOString(),aiAnalysis:{grammarScore:91,toneScore:87,riskLevel:'clean',riskScore:3}},
-  { _id:'d2',title:'Annual Cultural Fest',content:'A grand celebration...',category:'cultural',status:'needs_review',authorId:'stu_003',authorName:'Rohan Patil',authorRoll:'TE-CE-027',department:'Computer Engineering',attachments:[],version:2,createdAt:new Date(Date.now()-2*86400000).toISOString(),updatedAt:new Date(Date.now()-4*3600000).toISOString(),aiAnalysis:{grammarScore:84,toneScore:79,riskLevel:'clean',riskScore:7}},
-  { _id:'d3',title:'Sports Day Champions',content:'Athletics domination...',category:'sports',status:'ai_triage',authorId:'stu_005',authorName:'Amit Desai',authorRoll:'TE-CE-009',department:'Computer Engineering',attachments:[],version:1,createdAt:new Date(Date.now()-3*86400000).toISOString(),updatedAt:new Date(Date.now()-86400000).toISOString(),aiAnalysis:{grammarScore:78,toneScore:82,riskLevel:'clean',riskScore:5}},
-  { _id:'d4',title:'Blockchain in Supply Chain',content:'Smart contracts...',category:'technical',status:'approved',authorId:'stu_006',authorName:'Kavya Rao',authorRoll:'TE-CE-055',department:'Computer Engineering',attachments:[],version:3,createdAt:new Date(Date.now()-7*86400000).toISOString(),updatedAt:new Date(Date.now()-3*86400000).toISOString(),aiAnalysis:{grammarScore:97,toneScore:95,riskLevel:'clean',riskScore:0},facultyComment:'Excellent.'},
-  { _id:'d5',title:'Neural Networks Research',content:'Lightweight architectures...',category:'academic',status:'approved',authorId:'stu_004',authorName:'Sneha Joshi',authorRoll:'TE-CE-031',department:'Computer Engineering',attachments:[],version:2,createdAt:new Date(Date.now()-5*86400000).toISOString(),updatedAt:new Date(Date.now()-2*86400000).toISOString(),aiAnalysis:{grammarScore:95,toneScore:92,riskLevel:'clean',riskScore:1}},
-];
+
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -42,14 +36,23 @@ const FacultyDashboard: React.FC = () => {
   const [subs, setSubs] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [apiStats, setApiStats] = useState<any>(null);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const res = await submissionService.getAll({ limit: 50 });
+        const [res, statsRes] = await Promise.all([
+          submissionService.getAll({ limit: 50 }),
+          submissionService.getStats()
+        ]);
         const d = res.data.data;
-        setSubs(d && d.data && d.data.length > 0 ? d.data : demoSubs);
-      } catch { setSubs(demoSubs); }
+        setSubs(d && d.data ? d.data : []);
+        setApiStats(statsRes.data.data);
+      } catch { 
+        setSubs([]); 
+        setApiStats(null);
+      }
       finally { setLoading(false); }
     })();
   }, []);
@@ -71,6 +74,13 @@ const FacultyDashboard: React.FC = () => {
     { label: 'Avg Score', value: `${avg}%`, color: 'var(--accent-indigo)', icon: '◉' },
   ];
 
+  const aiStats = [
+    { label: 'Avg Grammar', value: `${Math.round(apiStats?.avgGrammarScore || avg)}%`, color: '#6366F1', icon: '📝' },
+    { label: 'Avg Tone', value: `${Math.round(apiStats?.avgToneScore || 85)}%`, color: '#8B5CF6', icon: '🎭' },
+    { label: 'Safety Flags', value: apiStats?.totalSafetyFlags || 0, color: '#F43F5E', icon: '🚩' },
+    { label: 'Pipeline Success', value: `${apiStats?.pipelineSuccessRate || 100}%`, color: '#10B981', icon: '⚡' },
+  ];
+
   return (
     <div className="page-enter" style={{ maxWidth: 1200 }}>
       <div style={{ marginBottom: '2rem' }}>
@@ -84,7 +94,7 @@ const FacultyDashboard: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem', marginBottom: '1rem' }}>
         {loading ? Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />) : stats.map((s, i) => (
           <div key={s.label} className={`stat-card fade-in-up fade-in-delay-${i + 1}`} style={{ borderLeft: `3px solid ${s.color}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -92,6 +102,19 @@ const FacultyDashboard: React.FC = () => {
               <span className="stat-label">{s.label}</span>
             </div>
             <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* AI Quality Stats Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem', marginBottom: '1.75rem' }}>
+        {loading ? Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />) : aiStats.map((s, i) => (
+          <div key={s.label} className={`stat-card fade-in-up fade-in-delay-${i + 3}`} style={{ borderLeft: `3px solid ${s.color}`, background: 'rgba(99,102,241,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ color: s.color }}>{s.icon}</span>
+              <span className="stat-label">{s.label}</span>
+            </div>
+            <div className="stat-value" style={{ color: s.color, fontSize: '1.2rem' }}>{s.value}</div>
           </div>
         ))}
       </div>

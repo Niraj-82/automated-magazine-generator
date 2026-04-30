@@ -20,9 +20,13 @@ export function useNotifications(): UseNotificationsReturn {
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await notificationService.getAll({ limit: 50 });
-      const paginated = res.data.data;
-      if (paginated) {
-        setNotifications(paginated.data || []);
+      const data = res.data.data;
+      if (Array.isArray(data)) {
+        setNotifications(data.map((n: any) => ({ ...n, read: n.isRead || n.read })));
+      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data)) {
+        setNotifications((data as any).data.map((n: any) => ({ ...n, read: n.isRead || n.read })));
+      } else {
+        setNotifications([]);
       }
     } catch {
       // Silently fail — notifications are non-critical

@@ -25,9 +25,12 @@ const User = sequelize.define('User', {
     allowNull: false,
   },
   role: {
-    type: DataTypes.ENUM('student', 'faculty', 'lab_assistant', 'admin'),
+    type: DataTypes.STRING,
     allowNull: false,
     defaultValue: 'student',
+    validate: {
+      isIn: [['student', 'faculty', 'lab_assistant', 'admin']],
+    },
   },
   rollNumber: {
     type: DataTypes.STRING,

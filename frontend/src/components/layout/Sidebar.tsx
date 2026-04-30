@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../ui/ThemeToggle';
+import { useNotifications } from '../../hooks/useNotifications';
 
 interface NavItem {
   label: string;
@@ -14,22 +15,18 @@ interface NavItem {
 const roleNavItems: Record<string, NavItem[]> = {
   student: [
     { label: 'Dashboard', path: '/student', icon: '⊞' },
-    { label: 'New Submission', path: '/student/submit', icon: '✦' },
-    { label: 'My Submissions', path: '/student/submissions', icon: '◈' },
-    { label: 'Notifications', path: '/student/notifications', icon: '◎', badge: 2 },
+    { label: 'New Submission', path: '/student?view=submit', icon: '✦' },
+    { label: 'Notifications', path: '/notifications', icon: '◎' },
   ],
   faculty: [
     { label: 'Dashboard', path: '/faculty', icon: '⊞' },
-    { label: 'Review Queue', path: '/faculty/review', icon: '◈', badge: 5 },
-    { label: 'Approved Content', path: '/faculty/approved', icon: '✓' },
-    { label: 'Analytics', path: '/faculty/analytics', icon: '◬' },
+    { label: 'Review Queue', path: '/faculty/review', icon: '◈' },
+    { label: 'Notifications', path: '/notifications', icon: '◎' },
   ],
   lab_assistant: [
     { label: 'Dashboard', path: '/lab', icon: '⊞' },
-    { label: 'Generate Magazine', path: '/lab/generate', icon: '✦' },
-    { label: 'Templates', path: '/lab/templates', icon: '⊡' },
     { label: 'Manage Users', path: '/lab/users', icon: '◉' },
-    { label: 'System Logs', path: '/lab/logs', icon: '▤' },
+    { label: 'Notifications', path: '/notifications', icon: '◎' },
   ],
 };
 
@@ -50,6 +47,7 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { unreadCount } = useNotifications();
 
   if (!user) return null;
 
@@ -141,8 +139,11 @@ const Sidebar: React.FC = () => {
 
       {/* Nav items */}
       <nav style={{ flex: 1, padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+      {navItems.map((item) => {
+          const fullLocation = location.pathname + location.search;
+          const isActive = item.path.includes('?') 
+            ? fullLocation === item.path 
+            : (location.pathname === item.path && !location.search) || location.pathname.startsWith(item.path + '/');
           return (
             <button
               key={item.path}
@@ -172,7 +173,22 @@ const Sidebar: React.FC = () => {
               {!collapsed && (
                 <>
                   <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.badge && (
+                  {item.path.includes('/notifications') && unreadCount > 0 && (
+                    <span
+                      style={{
+                        background: accentColor,
+                        color: 'white',
+                        borderRadius: '100px',
+                        padding: '0.1rem 0.5rem',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        animation: 'pulse 2s infinite',
+                      }}
+                    >
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                  {item.badge && !item.path.includes('/notifications') && (
                     <span
                       style={{
                         background: accentColor,

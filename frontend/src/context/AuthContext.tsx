@@ -92,45 +92,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string, role: UserRole) => {
     dispatch({ type: 'LOGIN_START' });
     try {
-      // In demo mode, simulate login
-      const demoUsers: Record<string, User> = {
-        'student@fcrit.ac.in': {
-          id: 'stu_001', name: 'Arjun Sharma', email: 'student@fcrit.ac.in',
-          role: 'student', rollNumber: 'TE-CE-042', department: 'Computer Engineering',
-        },
-        'faculty@fcrit.ac.in': {
-          id: 'fac_001', name: 'Prof. Meera Nair', email: 'faculty@fcrit.ac.in',
-          role: 'faculty', department: 'Computer Engineering',
-        },
-        'lab@fcrit.ac.in': {
-          id: 'lab_001', name: 'Lab Assistant Kumar', email: 'lab@fcrit.ac.in',
-          role: 'lab_assistant', department: 'Computer Engineering',
-        },
-      };
-
-      // Try real API first, fallback to demo
-      let user: User;
-      let token: string;
-
-      try {
-        const res = await axios.post('/auth/login', { email, password, role });
-        user = res.data.data.user;
-        token = res.data.data.token;
-      } catch {
-        // Demo mode fallback
-        const demoUser = demoUsers[email];
-        if (!demoUser || demoUser.role !== role) {
-          throw new Error('Invalid credentials');
-        }
-        user = demoUser;
-        token = `demo_token_${Date.now()}`;
-      }
+      const res = await axios.post('/auth/login', { email, password, role });
+      const user: User = res.data.data.user;
+      const token: string = res.data.data.token;
 
       localStorage.setItem('token', token);
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
     } catch (err: any) {
       dispatch({ type: 'LOGIN_FAILURE' });
-      throw new Error(err.message || 'Login failed');
+      // Extract error message from backend response
+      const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Login failed';
+      throw new Error(msg);
     }
   }, []);
 

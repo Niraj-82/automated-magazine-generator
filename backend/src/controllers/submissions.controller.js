@@ -111,11 +111,11 @@ const getSubmissions = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data,
-      pagination: {
+      data: {
+        data,
         total,
         page: pageNum,
-        pages: Math.ceil(total / limitNum) || 1,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
     });
   } catch (error) {
@@ -301,21 +301,33 @@ const getSubmissionStats = async (req, res) => {
           },
           avgGrammarScore: { $avg: '$aiAnalysis.grammarScore' },
           avgToneScore: { $avg: '$aiAnalysis.toneScore' },
+          totalSafetyFlags: {
+            $sum: { $cond: [{ $in: ['$aiAnalysis.riskLevel', ['flagged', 'blocked']] }, 1, 0] },
+          },
+          pipelineSuccess: {
+            $sum: { $cond: [{ $ne: ['$aiAnalysis', null] }, 1, 0] },
+          },
         },
       },
     ]);
 
+    const finalStats = stats || {
+      total: 0,
+      approved: 0,
+      rejected: 0,
+      needsReview: 0,
+      blocked: 0,
+      avgGrammarScore: 0,
+      avgToneScore: 0,
+      totalSafetyFlags: 0,
+      pipelineSuccess: 0,
+    };
+
+    finalStats.pipelineSuccessRate = finalStats.total > 0 ? Math.round((finalStats.pipelineSuccess / finalStats.total) * 100) : 0;
+
     return res.status(200).json({
       success: true,
-      data: stats || {
-        total: 0,
-        approved: 0,
-        rejected: 0,
-        needsReview: 0,
-        blocked: 0,
-        avgGrammarScore: 0,
-        avgToneScore: 0,
-      },
+      data: finalStats,
     });
   } catch (error) {
     logger.error(`Submission stats failed: ${error.message}`);

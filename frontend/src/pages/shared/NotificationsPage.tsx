@@ -23,14 +23,7 @@ const typeColors: Record<string, { color: string; bg: string; icon: string }> = 
   system: { color: 'var(--text-muted)', bg: 'rgba(100,116,139,0.15)', icon: '◈' },
 };
 
-// Demo notifications for fallback
-const demoNotifs: Notification[] = [
-  { id: 'n1', userId: 'stu_001', type: 'approved', message: 'Your article "Machine Learning in Healthcare" has been approved for publication.', read: false, createdAt: new Date(Date.now() - 3600000).toISOString(), link: '/student/submissions/s1' },
-  { id: 'n2', userId: 'stu_001', type: 'comment', message: 'Prof. Meera Nair commented on "Inter-College Hackathon Report": Great writing!', read: false, createdAt: new Date(Date.now() - 2 * 3600000).toISOString(), link: '/student/submissions/s2' },
-  { id: 'n3', userId: 'stu_001', type: 'flagged', message: 'Your submission "Annual Sports Day" has been flagged for grammar improvements.', read: true, createdAt: new Date(Date.now() - 86400000).toISOString(), link: '/student/submissions/s3' },
-  { id: 'n4', userId: 'stu_001', type: 'system', message: 'Magazine submission deadline extended to June 15, 2026.', read: true, createdAt: new Date(Date.now() - 2 * 86400000).toISOString() },
-  { id: 'n5', userId: 'stu_001', type: 'approved', message: 'Your article "Blockchain in Supply Chain" is featured in the cover section.', read: true, createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
-];
+
 
 function timeAgo(d: string): string {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -43,8 +36,7 @@ const NotificationsPage: React.FC = () => {
   const { notifications: apiNotifs, loading, unreadCount, markRead, markAllRead } = useNotifications();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
 
-  // Use demo data if API returns nothing
-  const notifications = apiNotifs.length > 0 ? apiNotifs : demoNotifs;
+  const notifications = apiNotifs || [];
 
   const filtered = activeTab === 'all' ? notifications : notifications.filter(n => n.type === activeTab);
 

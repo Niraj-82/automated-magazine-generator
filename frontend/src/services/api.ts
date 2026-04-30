@@ -84,8 +84,8 @@ export const submissionService = {
   update: (id: string, data: Partial<Submission>) =>
     api.patch<ApiResponse<Submission>>(`/submissions/${id}`, data),
 
-  updateStatus: (id: string, status: SubmissionStatus, comment?: string) =>
-    api.patch<ApiResponse<Submission>>(`/submissions/${id}/status`, { status, comment }),
+  updateStatus: (id: string, status: SubmissionStatus, facultyComment?: string) =>
+    api.patch<ApiResponse<Submission>>(`/submissions/${id}/status`, { status, facultyComment }),
 
   delete: (id: string) =>
     api.delete<ApiResponse<null>>(`/submissions/${id}`),
@@ -99,6 +99,8 @@ export const submissionService = {
       blocked: number;
       avgGrammarScore: number;
       avgToneScore: number;
+      totalSafetyFlags: number;
+      pipelineSuccessRate: number;
     }>>('/submissions/stats'),
 
   setLabTemplate: (id: string, templateId: string) =>

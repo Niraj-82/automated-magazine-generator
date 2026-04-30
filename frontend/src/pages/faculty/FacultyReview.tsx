@@ -4,43 +4,12 @@ import { Submission, SubmissionStatus } from '../../types';
 import { submissionService } from '../../services/api';
 import { SkeletonCard } from '../../components/ui/SkeletonLoader';
 
-const mockArticles: Submission[] = [
-  {
-    _id: 'f1', title: 'Quantum Computing Fundamentals', content: `Quantum computing represents a fundamentally different paradigm for computation. Unlike classical computers that use bits (0 or 1), quantum computers use qubits which can exist in superposition states. This paper explores how colleges can leverage quantum simulation tools for academic purposes and the implications for the next generation of computer engineers graduating from our department.\n\nThe fundamental principle of quantum superposition allows a qubit to be in both states simultaneously, exponentially increasing processing power for specific problem types. When multiple qubits become entangled, measuring one instantly determines the state of its partner regardless of distance — a phenomenon Einstein called "spooky action at a distance."\n\nFor the college magazine, understanding these concepts helps contextualise why our Computer Engineering department has introduced quantum algorithms as an elective in the final year curriculum.`,
-    category: 'technical', status: 'ai_triage', authorId: 'stu_002', authorName: 'Priya Menon', authorRoll: 'TE-CE-018', department: 'Computer Engineering', attachments: [], version: 1,
-    createdAt: new Date(Date.now() - 6 * 3600000).toISOString(), updatedAt: new Date(Date.now() - 1 * 3600000).toISOString(),
-    aiAnalysis: { grammarScore: 91, toneScore: 87, riskLevel: 'clean', riskScore: 3, shortSummary: 'Explores quantum computing fundamentals and their relevance to college engineering curriculum.', suggestedCategory: 'technical', flaggedKeywords: [] },
-  },
-  {
-    _id: 'f2', title: 'Annual Cultural Fest Retrospective', content: `This year's Techno-Cultural Fest brought together over 1200 students from 15 colleges across Maharashtra. Our college emerged as the overall champions in both technical and cultural categories. The three-day event showcased incredible talent from robotics demonstrations to classical dance performances.\n\nThe highlight of the technical segment was our college's autonomous robot that navigated a complex obstacle course in under 47 seconds, beating the previous record by 12 seconds. The cultural evening featured a fusion performance blending Bharatanatyam with contemporary hip-hop choreography that received a standing ovation from the audience and judges alike.\n\nSpecial mention goes to the organizing committee who worked tirelessly for four months to make this event a grand success. The fest also featured industry stalwarts from Tata Consultancy Services and Infosys who interacted with students about career opportunities.`,
-    category: 'cultural', status: 'needs_review', authorId: 'stu_003', authorName: 'Rohan Patil', authorRoll: 'TE-CE-027', department: 'Computer Engineering', attachments: [], version: 2,
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), updatedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
-    aiAnalysis: { grammarScore: 84, toneScore: 79, riskLevel: 'clean', riskScore: 7, shortSummary: 'Recap of the annual cultural and technical fest with focus on achievements.', suggestedCategory: 'cultural' },
-  },
-  {
-    _id: 'f3', title: 'Student Research: Neural Networks', content: `Our third-year research group has been investigating lightweight neural network architectures for edge devices. The work, conducted under the guidance of Prof. Sharma, resulted in a 40% reduction in model size without significant accuracy loss. This achievement was recognised at the state-level student research symposium.\n\nThe research focused on knowledge distillation techniques where a smaller "student" network is trained to mimic a larger "teacher" network. By applying structured pruning and quantization, the team achieved deployment-ready models suitable for microcontrollers with limited RAM.`,
-    category: 'academic', status: 'ai_triage', authorId: 'stu_004', authorName: 'Sneha Joshi', authorRoll: 'TE-CE-031', department: 'Computer Engineering', attachments: [], version: 1,
-    createdAt: new Date(Date.now() - 12 * 3600000).toISOString(), updatedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-    aiAnalysis: { grammarScore: 95, toneScore: 92, riskLevel: 'clean', riskScore: 1, shortSummary: 'Student-led research on efficient neural networks for edge deployment.' },
-  },
-  {
-    _id: 'f4', title: 'Sports Day 2025 Champions', content: `The 2025 Annual Sports Day was held on the college grounds with over 800 students participating across 22 events. Computer Engineering dominated the athletics track with four gold medals in the 100m, 400m, relay, and long jump events. The basketball team also clinched the championship for the third consecutive year.\n\nCoach Mehta praised the dedication of the students: "This team trains every morning at 6 AM despite their demanding academic schedule." The trophy cabinet in the CE department now holds the most trophies among all departments in the college.`,
-    category: 'sports', status: 'needs_review', authorId: 'stu_005', authorName: 'Amit Desai', authorRoll: 'TE-CE-009', department: 'Computer Engineering', attachments: [], version: 1,
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(), updatedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-    aiAnalysis: { grammarScore: 78, toneScore: 82, riskLevel: 'clean', riskScore: 5 },
-  },
-  {
-    _id: 'f5', title: 'Blockchain in Supply Chain', content: `Blockchain technology offers unprecedented transparency in supply chain management. Smart contracts automate vendor payments and quality verification without intermediaries. Our final year project demonstrates a proof-of-concept using Ethereum and Solidity to track pharmaceutical supply chains from manufacturer to end consumer, addressing a critical need in post-pandemic healthcare logistics.`, category: 'technical', status: 'approved', authorId: 'stu_006', authorName: 'Kavya Rao', authorRoll: 'TE-CE-055', department: 'Computer Engineering', attachments: [], version: 3,
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(), updatedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    aiAnalysis: { grammarScore: 97, toneScore: 95, riskLevel: 'clean', riskScore: 0 },
-    facultyComment: 'Excellent technical depth. Approved for featured article slot.',
-  },
-];
 
 const columns: { id: SubmissionStatus; title: string; color: string; desc: string }[] = [
   { id: 'ai_triage', title: 'AI Triage', color: '#F59E0B', desc: 'Pending AI pipeline output' },
   { id: 'needs_review', title: 'Needs Review', color: '#8B5CF6', desc: 'Ready for faculty reading' },
   { id: 'approved', title: 'Approved', color: '#10B981', desc: 'Cleared for layout' },
+  { id: 'rejected', title: 'Rejected', color: '#F43F5E', desc: 'Rejected by faculty' },
 ];
 
 interface GrammarHighlight {
@@ -66,9 +35,9 @@ const FacultyReview: React.FC = () => {
       try {
         const res = await submissionService.getAll({ limit: 50 });
         const d = res.data.data;
-        if (d && d.data && d.data.length > 0) { setArticles(d.data); }
-        else { setArticles(mockArticles); }
-      } catch { setArticles(mockArticles); }
+        if (d && d.data) { setArticles(d.data); }
+        else { setArticles([]); }
+      } catch { setArticles([]); }
       finally { setLoading(false); }
     })();
   }, []);
@@ -92,11 +61,12 @@ const FacultyReview: React.FC = () => {
       prev.map((a) => (a._id === id ? { ...a, status, facultyComment: comment, updatedAt: new Date().toISOString() } : a))
     );
     closeDrawer();
-    // Call API (non-blocking)
+    // Call API
     try {
       await submissionService.updateStatus(id, status, comment);
-    } catch {
-      // Silently fail in demo mode — optimistic update stays
+    } catch (err) {
+      // Revert on failure would go here
+      console.error('Failed to update status:', err);
     }
   };
 

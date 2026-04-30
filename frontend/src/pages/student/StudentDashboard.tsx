@@ -1,61 +1,11 @@
 // src/pages/student/StudentDashboard.tsx
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Submission, ContentCategory, SubmissionStatus } from '../../types';
 import { submissionService } from '../../services/api';
 import { SkeletonGrid } from '../../components/ui/SkeletonLoader';
 
-// ── Mock submissions for demo ──
-const mockSubmissions: Submission[] = [
-  {
-    _id: 's1',
-    title: 'Machine Learning in Healthcare',
-    content: 'AI is revolutionizing diagnostic medicine...',
-    category: 'technical',
-    status: 'approved',
-    authorId: 'stu_001',
-    authorName: 'Arjun Sharma',
-    authorRoll: 'TE-CE-042',
-    department: 'Computer Engineering',
-    attachments: [],
-    version: 2,
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    aiAnalysis: { grammarScore: 92, toneScore: 88, riskLevel: 'clean', riskScore: 5 },
-  },
-  {
-    _id: 's2',
-    title: 'Inter-College Hackathon Report',
-    content: 'Our team participated in HackFest 2025...',
-    category: 'achievements',
-    status: 'ai_triage',
-    authorId: 'stu_001',
-    authorName: 'Arjun Sharma',
-    authorRoll: 'TE-CE-042',
-    department: 'Computer Engineering',
-    attachments: [],
-    version: 1,
-    createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000).toISOString(),
-    aiAnalysis: { grammarScore: 75, toneScore: 70, riskLevel: 'clean', riskScore: 12 },
-  },
-  {
-    _id: 's3',
-    title: 'Annual Sports Day Highlights',
-    content: 'The annual sports day was a grand success...',
-    category: 'sports',
-    status: 'needs_review',
-    authorId: 'stu_001',
-    authorName: 'Arjun Sharma',
-    authorRoll: 'TE-CE-042',
-    department: 'Computer Engineering',
-    attachments: [],
-    version: 1,
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-];
 
 const statusConfig: Record<SubmissionStatus, { label: string; color: string; bg: string; icon: string }> = {
   draft: { label: 'Draft', color: 'var(--text-muted)', bg: 'rgba(100,116,139,0.2)', icon: '○' },
@@ -68,34 +18,101 @@ const statusConfig: Record<SubmissionStatus, { label: string; color: string; bg:
 
 const categories: ContentCategory[] = ['technical', 'sports', 'cultural', 'academic', 'achievements', 'department'];
 
-const deadline = new Date('2026-06-15');
-const today = new Date();
-const daysLeft = Math.max(0, Math.ceil((deadline.getTime() - today.getTime()) / 86400000));
-const totalDays = 90;
-const progressPct = Math.min(100, Math.round(((totalDays - daysLeft) / totalDays) * 100));
-
 const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubs, setLoadingSubs] = useState(true);
-  const [activeView, setActiveView] = useState<'dashboard' | 'submit'>('dashboard');
-  const [form, setForm] = useState({ title: '', content: '', category: 'technical' as ContentCategory });
+  const viewFromUrl = searchParams.get('view') === 'submit' ? 'submit' : 'dashboard';
+  const [activeView, setActiveView] = useState<'dashboard' | 'submit'>(viewFromUrl);
+  const [form, setForm] = useState({ title: '', content: '', category: 'technical' as ContentCategory, chosenTemplate: 'single_column' });
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState<null | 'uploading' | 'ai_triage' | 'done'>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [draftStatus, setDraftStatus] = useState<string>('');
+  const [draftBanner, setDraftBanner] = useState<{title: string, date: string} | null>(null);
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
+  const isDeadlinePassed = timeLeft.days === 0 && timeLeft.hours === 0 && timeLeft.mins === 0 && timeLeft.secs === 0;
 
-  // Fetch submissions from API, fallback to demo data
+  // 5C: Live Deadline Countdown
+  useEffect(() => {
+    const target = new Date('2026-06-15T00:00:00').getTime();
+    const calc = () => {
+      const now = new Date().getTime();
+      const diff = target - now;
+      if (diff <= 0) {
+         setTimeLeft({ days: 0, hours: 0, mins: 0, secs: 0 });
+      } else {
+         setTimeLeft({
+           days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+           hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+           mins: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+           secs: Math.floor((diff % (1000 * 60)) / 1000)
+         });
+      }
+    };
+    calc();
+    const interval = setInterval(calc, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 5B: Draft Auto-Save to localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('tech_odyssey_draft_submission');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.title || parsed.content) {
+          setDraftBanner({ title: parsed.title, date: new Date(parsed.savedAt).toLocaleString() });
+        }
+      } catch(e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (form.title || form.content) {
+        localStorage.setItem('tech_odyssey_draft_submission', JSON.stringify({ ...form, savedAt: Date.now() }));
+        setDraftStatus('Draft saved just now');
+        setTimeout(() => setDraftStatus('Draft saved a few seconds ago'), 10000);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [form]);
+
+  const restoreDraft = () => {
+    const saved = localStorage.getItem('tech_odyssey_draft_submission');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setForm({ title: parsed.title || '', content: parsed.content || '', category: parsed.category || 'technical', chosenTemplate: parsed.chosenTemplate || 'single_column' });
+        setDraftBanner(null);
+      } catch(e) {}
+    }
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem('tech_odyssey_draft_submission');
+    setDraftBanner(null);
+  };
+
+  // Sync activeView with URL query param
+  useEffect(() => {
+    setActiveView(viewFromUrl);
+  }, [viewFromUrl]);
+
+  // Fetch submissions from API
   useEffect(() => {
     (async () => {
       setLoadingSubs(true);
       try {
         const res = await submissionService.getAll({ limit: 50 });
         const d = res.data.data;
-        if (d && d.data && d.data.length > 0) { setSubmissions(d.data); }
-        else { setSubmissions(mockSubmissions); }
-      } catch { setSubmissions(mockSubmissions); }
+        if (d && d.data) { setSubmissions(d.data); }
+        else { setSubmissions([]); }
+      } catch { setSubmissions([]); }
       finally { setLoadingSubs(false); }
     })();
   }, []);
@@ -130,36 +147,25 @@ const StudentDashboard: React.FC = () => {
       formData.append('title', form.title);
       formData.append('content', form.content);
       formData.append('category', form.category);
+      formData.append('chosenTemplate', form.chosenTemplate);
       files.forEach(f => formData.append('attachments', f));
 
-      let newSub: Submission | null = null;
-      try {
-        const res = await submissionService.create(formData);
-        newSub = res.data.data || null;
-      } catch {
-        // Demo fallback if API unavailable
-      }
+      setSubmitStep('uploading');
+      const res = await submissionService.create(formData);
+      const newSub = res.data.data;
 
       setSubmitStep('ai_triage');
-      await new Promise((r) => setTimeout(r, 1800));
+      await new Promise((r) => setTimeout(r, 1500));
       setSubmitStep('done');
-
-      if (!newSub) {
-        newSub = {
-          _id: `s${Date.now()}`, title: form.title, content: form.content,
-          category: form.category, status: 'ai_triage', authorId: user!.id,
-          authorName: user!.name, authorRoll: user!.rollNumber || '',
-          department: user!.department || '', attachments: [], version: 1,
-          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-          aiAnalysis: { grammarScore: 82, toneScore: 78, riskLevel: 'clean', riskScore: 8 },
-        };
-      }
-
       await new Promise((r) => setTimeout(r, 800));
-      setSubmissions((prev) => [newSub!, ...prev]);
+
+      if (newSub) {
+        setSubmissions((prev) => [newSub, ...prev]);
+      }
     } catch { /* silently fail */ }
     finally {
-      setForm({ title: '', content: '', category: 'technical' });
+      localStorage.removeItem('tech_odyssey_draft_submission');
+      setForm({ title: '', content: '', category: 'technical', chosenTemplate: 'single_column' });
       setFiles([]);
       setSubmitting(false);
       setSubmitStep(null);
@@ -196,11 +202,13 @@ const StudentDashboard: React.FC = () => {
             </p>
           </div>
 
-          {/* Deadline progress */}
+          {/* Live Deadline progress */}
           <div style={{ minWidth: 220 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.5rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Submission Deadline</span>
-              <span style={{ color: '#06B6D4', fontWeight: 600 }}>{daysLeft} days left</span>
+              <span style={{ color: isDeadlinePassed ? '#F43F5E' : '#06B6D4', fontWeight: 600 }}>
+                {isDeadlinePassed ? 'Deadline passed' : `${timeLeft.days} days, ${timeLeft.hours} hours`}
+              </span>
             </div>
             <div
               style={{
@@ -213,10 +221,11 @@ const StudentDashboard: React.FC = () => {
               <div
                 style={{
                   height: '100%',
-                  width: `${progressPct}%`,
-                  background: 'linear-gradient(90deg, #06B6D4, #6366F1)',
+                  width: isDeadlinePassed ? '100%' : `${Math.min(100, Math.round(((90 - timeLeft.days) / 90) * 100))}%`,
+                  background: isDeadlinePassed ? '#F43F5E' : (timeLeft.days < 7 ? '#F43F5E' : (timeLeft.days <= 30 ? '#F59E0B' : 'linear-gradient(90deg, #06B6D4, #6366F1)')),
                   borderRadius: '100px',
                   transition: 'width 1s ease',
+                  animation: timeLeft.days < 7 && !isDeadlinePassed ? 'pulse 2s infinite' : 'none'
                 }}
               />
             </div>
@@ -225,6 +234,18 @@ const StudentDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {draftBanner && activeView === 'submit' && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid #F59E0B', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.85rem' }}>
+              <span style={{ color: '#F59E0B', fontWeight: 600 }}>Draft found!</span> You have an unsaved draft from {draftBanner.date}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={restoreDraft} className="btn-secondary" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', color: '#F59E0B', borderColor: '#F59E0B' }}>Restore</button>
+              <button onClick={discardDraft} className="btn-secondary" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Discard</button>
+            </div>
+          </div>
+        )}
 
         {/* View toggle */}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -260,6 +281,8 @@ const StudentDashboard: React.FC = () => {
           handleSubmit={handleSubmit}
           submitting={submitting}
           submitStep={submitStep}
+          isDeadlinePassed={isDeadlinePassed}
+          draftStatus={draftStatus}
         />
       )}
     </div>
@@ -286,7 +309,7 @@ const DashboardView: React.FC<{ submissions: Submission[] }> = ({ submissions })
           { label: 'Total Submissions', value: submissions.length, color: '#06B6D4', icon: '◈' },
           { label: 'Approved', value: approved, color: '#10B981', icon: '●' },
           { label: 'In Review', value: inReview, color: '#F59E0B', icon: '◑' },
-          { label: 'AI Score Avg', value: '85%', color: '#6366F1', icon: '◉' },
+          { label: 'AI Score Avg', value: submissions.length > 0 ? `${Math.round(submissions.reduce((a, s) => a + (s.aiAnalysis?.grammarScore || 0), 0) / submissions.length)}%` : '—', color: '#6366F1', icon: '◉' },
         ].map((stat, i) => (
           <div
             key={stat.label}
@@ -321,7 +344,13 @@ const DashboardView: React.FC<{ submissions: Submission[] }> = ({ submissions })
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {submissions.map((sub) => {
+            {submissions.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📝</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.25rem' }}>No submissions yet</div>
+                <div style={{ fontSize: '0.8rem' }}>Create your first article submission to get started!</div>
+              </div>
+            ) : submissions.map((sub) => {
               const sc = statusConfig[sub.status];
               return (
                 <div
@@ -492,7 +521,7 @@ const ContentHealthRing: React.FC<{ submission: Submission }> = ({ submission })
 
 // ── Submission form ──
 interface SubmitViewProps {
-  form: { title: string; content: string; category: ContentCategory };
+  form: { title: string; content: string; category: ContentCategory; chosenTemplate: string; };
   setForm: React.Dispatch<React.SetStateAction<any>>;
   files: File[];
   setFiles: React.Dispatch<React.SetStateAction<File[]>>;
@@ -503,11 +532,13 @@ interface SubmitViewProps {
   handleSubmit: (e: React.FormEvent) => Promise<void>;
   submitting: boolean;
   submitStep: null | 'uploading' | 'ai_triage' | 'done';
+  isDeadlinePassed: boolean;
+  draftStatus: string;
 }
 
 const SubmitView: React.FC<SubmitViewProps> = ({
   form, setForm, files, setFiles, dragActive, setDragActive,
-  handleDrop, handleFileInput, handleSubmit, submitting, submitStep,
+  handleDrop, handleFileInput, handleSubmit, submitting, submitStep, isDeadlinePassed, draftStatus
 }) => {
   if (submitting) {
     return (
@@ -610,6 +641,13 @@ const SubmitView: React.FC<SubmitViewProps> = ({
         Your article will be automatically scanned by the AI pipeline before faculty review.
       </p>
 
+      {isDeadlinePassed ? (
+        <div style={{ padding: '2rem', textAlign: 'center', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem', color: '#F43F5E' }}>!</div>
+          <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '0.5rem' }}>Deadline Passed</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Submissions are now closed for this edition.</p>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
@@ -640,6 +678,45 @@ const SubmitView: React.FC<SubmitViewProps> = ({
             </select>
           </div>
 
+          {/* Template Picker */}
+          <div>
+            <label className="label">Choose your article layout</label>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '1rem',
+              marginTop: '0.5rem'
+            }}>
+              {[
+                { id: 'single_column', name: 'SINGLE COLUMN', desc: 'Clean single-column, great for detailed articles' },
+                { id: 'two_column', name: 'TWO COLUMN', desc: 'Professional split layout, best for technical topics' },
+                { id: 'photo_left', name: 'PHOTO LEFT', desc: 'Image on left, text right — great for event coverage' },
+                { id: 'photo_right', name: 'PHOTO RIGHT', desc: 'Text left, image right — ideal for achievements' },
+                { id: 'full_bleed', name: 'FULL BLEED', desc: 'Full-width image header with text below' },
+                { id: 'pull_quote_hero', name: 'PULL QUOTE HERO', desc: 'Large pull quote dominates — best for creative writing' }
+              ].map(tpl => (
+                <div
+                  key={tpl.id}
+                  data-hoverable
+                  onClick={() => setForm((p: any) => ({ ...p, chosenTemplate: tpl.id }))}
+                  style={{
+                    border: form.chosenTemplate === tpl.id ? '2px solid var(--accent-indigo)' : '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1rem',
+                    cursor: 'none',
+                    background: form.chosenTemplate === tpl.id ? 'var(--accent-indigo-glow)' : 'var(--bg-card)',
+                    transition: 'all 0.2s ease',
+                    boxShadow: form.chosenTemplate === tpl.id ? '0 0 12px rgba(99,102,241,0.2)' : 'none'
+                  }}
+                >
+                  <div style={{ height: 40, border: '1px dashed var(--border-subtle)', marginBottom: '0.5rem', borderRadius: '4px' }}></div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{tpl.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{tpl.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="label">Content *</label>
             <textarea
@@ -650,8 +727,15 @@ const SubmitView: React.FC<SubmitViewProps> = ({
               required
               style={{ minHeight: 200 }}
             />
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', textAlign: 'right' }}>
-              {form.content.length} characters
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontStyle: 'italic' }}>{draftStatus}</span>
+              <span>
+                {(() => {
+                  const words = form.content.trim() ? form.content.trim().split(/\s+/).length : 0;
+                  const minRead = Math.max(1, Math.ceil(words / 200));
+                  return `${words} words | ~${minRead} min read`;
+                })()}
+              </span>
             </div>
           </div>
         </div>
@@ -730,15 +814,21 @@ const SubmitView: React.FC<SubmitViewProps> = ({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-          <button type="button" className="btn-secondary" onClick={() => setForm({ title: '', content: '', category: 'technical' })}>
-            Clear
-          </button>
-          <button type="submit" className="btn-primary" disabled={!form.title || !form.content}>
-            ✦ Submit Article
-          </button>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {draftStatus}
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button type="button" className="btn-secondary" onClick={() => setForm({ title: '', content: '', category: 'technical', chosenTemplate: 'single_column' })}>
+              Clear
+            </button>
+            <button type="submit" className="btn-primary" disabled={!form.title || !form.content || isDeadlinePassed}>
+              ✦ Submit Article
+            </button>
+          </div>
         </div>
       </form>
+      )}
     </div>
   );
 };

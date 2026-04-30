@@ -5,9 +5,14 @@ import { submissionService, getErrorMessage } from '../services/api';
 
 interface SubmissionStats {
   total: number;
-  byStatus: Record<string, number>;
-  byCategory: Record<string, number>;
-  recent: Submission[];
+  approved: number;
+  needsReview: number;
+  rejected: number;
+  blocked: number;
+  avgGrammarScore: number;
+  avgToneScore: number;
+  totalSafetyFlags: number;
+  pipelineSuccessRate: number;
 }
 
 interface UseSubmissionsReturn {

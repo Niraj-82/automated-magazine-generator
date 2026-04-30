@@ -55,7 +55,7 @@ const notifyStudentStatusChange = async (submission, status, comment = '') => {
 
   await createNotification({
     userId: submission.authorId,
-    type: status === 'approved' ? 'success' : status === 'rejected' ? 'warning' : 'info',
+    type: status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'system',
     title: 'Submission status updated',
     message,
     link: `/student/submissions/${submission._id}`,

@@ -13,9 +13,12 @@ const Notification = sequelize.define('Notification', {
     allowNull: false,
   },
   type: {
-    type: DataTypes.ENUM('info', 'success', 'warning', 'error', 'action_required'),
+    type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: 'info',
+    defaultValue: 'system',
+    validate: {
+      isIn: [['approved', 'flagged', 'rejected', 'comment', 'system', 'action_required', 'info', 'success', 'warning', 'error']],
+    },
   },
   title: {
     type: DataTypes.STRING,

@@ -1,7 +1,7 @@
 // src/pages/lab/LabDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { TemplateConfig } from '../../types';
-import { templateService, generateService, getErrorMessage } from '../../services/api';
+import { templateService, generateService, submissionService, getErrorMessage } from '../../services/api';
 import toast from 'react-hot-toast';
 
 const templates: (TemplateConfig & { preview: string })[] = [
@@ -22,12 +22,7 @@ const templates: (TemplateConfig & { preview: string })[] = [
   },
 ];
 
-const stats = [
-  { label: 'Total Submissions', value: 47, color: '#06B6D4' },
-  { label: 'Approved', value: 32, color: '#10B981' },
-  { label: 'Pending Review', value: 9, color: '#F59E0B' },
-  { label: 'Completion', value: '68%', color: '#6366F1' },
-];
+
 
 const generationSteps = [
   { id: 'layout', label: 'Applying Layout Templates', icon: '⊞' },
@@ -45,8 +40,23 @@ const LabDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'generate' | 'users' | 'logs'>('generate');
   const [templateList, setTemplateList] = useState<(TemplateConfig & { preview: string })[]>(templates);
   const [downloadFile, setDownloadFile] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  // Fetch templates from API
+  const [magConfig, setMagConfig] = useState({
+    title: 'Tech Odyssey 2026',
+    department: 'Computer Engineering',
+    volume: 'Vol. XII',
+    year: '2026',
+    tagline: 'Innovate, Inspire, Ignite',
+    themeColor: '#6366F1',
+    institution: 'Fr. C. Rodrigues Institute of Technology',
+    hodName: 'Dr. John Doe',
+  });
+
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [apiStats, setApiStats] = useState<any>(null);
+
+  // Fetch templates, submissions & stats
   useEffect(() => {
     (async () => {
       try {
@@ -56,6 +66,18 @@ const LabDashboard: React.FC = () => {
           setTemplateList(d.map(t => ({ ...t, preview: t.layout === 'two_column' ? '2col' : t.layout === 'gallery' ? 'gallery' : t.layout === 'cover' ? 'cover' : 'single' })));
         }
       } catch { /* keep default templates */ }
+      try {
+        const subRes = await submissionService.getAll({ limit: 100 });
+        if (subRes.data.data?.data) {
+          setSubmissions(subRes.data.data.data);
+        }
+      } catch { }
+      try {
+        const statsRes = await submissionService.getStats();
+        if (statsRes.data.data) {
+          setApiStats(statsRes.data.data);
+        }
+      } catch { }
     })();
   }, []);
 
@@ -66,13 +88,9 @@ const LabDashboard: React.FC = () => {
 
     // Try real API generation
     try {
-      const sel = templateList.find(t => t._id === selectedTemplate);
       const genPromise = generateService.generate({
         templateId: selectedTemplate,
-        title: 'Tech Odyssey 2026',
-        department: 'Computer Engineering',
-        volume: 'Vol. XII',
-        year: '2026',
+        ...magConfig
       });
 
       // Animate steps while waiting
@@ -83,7 +101,14 @@ const LabDashboard: React.FC = () => {
 
       try {
         const res = await genPromise;
-        if (res.data.data?.filename) setDownloadFile(res.data.data.filename);
+        if (res.data.data?.filename) {
+          setDownloadFile(res.data.data.filename);
+          try {
+            const blobRes = await generateService.download(res.data.data.filename);
+            const url = window.URL.createObjectURL(new Blob([blobRes.data], { type: 'application/pdf' }));
+            setPdfUrl(url);
+          } catch(e) {}
+        }
       } catch { /* demo mode — no real PDF */ }
     } catch {
       for (let i = 0; i < generationSteps.length; i++) {
@@ -95,17 +120,23 @@ const LabDashboard: React.FC = () => {
   };
 
   const handleDownload = async () => {
-    if (!downloadFile) {
-      toast.success('PDF generated (demo mode)');
+    if (pdfUrl) {
+      const a = document.createElement('a');
+      a.href = pdfUrl; a.download = downloadFile || 'magazine.pdf'; a.click();
       return;
     }
+    toast.success('PDF generated (demo mode)');
+  };
+
+  const overrideTemplate = async (id: string, tpl: string) => {
     try {
-      const res = await generateService.download(downloadFile);
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url; a.download = downloadFile; a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) { toast.error(getErrorMessage(err)); }
+      const api = await import('../../services/api');
+      await api.submissionService.setLabTemplate(id, tpl);
+      setSubmissions(submissions.map(s => s._id === id ? { ...s, labOverrideTemplate: tpl } : s));
+      toast.success('Template override saved');
+    } catch {
+      toast.error('Failed to override template');
+    }
   };
 
   return (
@@ -122,7 +153,12 @@ const LabDashboard: React.FC = () => {
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.75rem' }}>
-        {stats.map((s, i) => (
+        {[
+          { label: 'Total Submissions', value: apiStats?.total ?? 0, color: '#06B6D4' },
+          { label: 'Approved', value: apiStats?.approved ?? 0, color: '#10B981' },
+          { label: 'Pending Review', value: apiStats?.needsReview ?? 0, color: '#F59E0B' },
+          { label: 'Completion', value: apiStats?.total > 0 ? `${Math.round(((apiStats?.approved ?? 0) / apiStats.total) * 100)}%` : '0%', color: '#6366F1' },
+        ].map((s, i) => (
           <div key={s.label} className={`stat-card fade-in-up fade-in-delay-${i + 1}`} style={{ borderTop: `3px solid ${s.color}` }}>
             <span className="stat-label">{s.label}</span>
             <span className="stat-value" style={{ color: s.color }}>{s.value}</span>
@@ -201,6 +237,52 @@ const LabDashboard: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            {/* Article Template Table */}
+            <div className="card" style={{ marginTop: '2rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', marginBottom: '1rem' }}>Article Layout Overrides</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-subtle)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.5rem 0.25rem', fontWeight: 500 }}>Article Title</th>
+                      <th style={{ padding: '0.5rem 0.25rem', fontWeight: 500 }}>Student</th>
+                      <th style={{ padding: '0.5rem 0.25rem', fontWeight: 500 }}>Student's Choice</th>
+                      <th style={{ padding: '0.5rem 0.25rem', fontWeight: 500 }}>Lab Override</th>
+                      <th style={{ padding: '0.5rem 0.25rem', fontWeight: 500 }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submissions.filter(s => s.status === 'approved').map(s => (
+                      <tr key={s._id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '0.75rem 0.25rem', fontWeight: 500, maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</td>
+                        <td style={{ padding: '0.75rem 0.25rem', color: 'var(--text-secondary)' }}>{s.authorName}</td>
+                        <td style={{ padding: '0.75rem 0.25rem', color: '#06B6D4' }}>{s.chosenTemplate || 'single_column'}</td>
+                        <td style={{ padding: '0.75rem 0.25rem', color: '#8B5CF6' }}>{s.labOverrideTemplate || 'None'}</td>
+                        <td style={{ padding: '0.75rem 0.25rem' }}>
+                          <select 
+                            style={{ fontSize: '0.75rem', padding: '0.2rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)' }}
+                            value={s.labOverrideTemplate || ''}
+                            onChange={e => overrideTemplate(s._id, e.target.value)}
+                          >
+                            <option value="">Reset (None)</option>
+                            <option value="single_column">Single Column</option>
+                            <option value="two_column">Two Column</option>
+                            <option value="photo_left">Photo Left</option>
+                            <option value="photo_right">Photo Right</option>
+                            <option value="full_bleed">Full Bleed</option>
+                            <option value="pull_quote_hero">Pull Quote Hero</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                    {submissions.filter(s => s.status === 'approved').length === 0 && (
+                      <tr><td colSpan={5} style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>No approved submissions yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           {/* Right: Generation panel */}
@@ -238,26 +320,41 @@ const LabDashboard: React.FC = () => {
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div>
-                  <label className="label">Magazine Title</label>
-                  <input type="text" className="input-field" defaultValue="Tech Odyssey 2026" style={{ fontSize: '0.875rem' }} />
+                  <label className="label">Magazine Name</label>
+                  <input type="text" className="input-field" value={magConfig.title} onChange={e => setMagConfig(p => ({ ...p, title: e.target.value }))} style={{ fontSize: '0.875rem' }} />
                 </div>
                 <div>
-                  <label className="label">Department</label>
-                  <select className="input-field" style={{ fontSize: '0.875rem' }}>
-                    <option>Computer Engineering</option>
-                    <option>Information Technology</option>
-                    <option>Electronics</option>
-                    <option>All Departments</option>
-                  </select>
+                  <label className="label">Tagline</label>
+                  <input type="text" className="input-field" value={magConfig.tagline} onChange={e => setMagConfig(p => ({ ...p, tagline: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">Institution</label>
+                    <input type="text" className="input-field" value={magConfig.institution} onChange={e => setMagConfig(p => ({ ...p, institution: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">HOD Name</label>
+                    <input type="text" className="input-field" value={magConfig.hodName} onChange={e => setMagConfig(p => ({ ...p, hodName: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">Department</label>
+                    <input type="text" className="input-field" value={magConfig.department} onChange={e => setMagConfig(p => ({ ...p, department: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="label">Theme Colour</label>
+                    <input type="color" className="input-field" style={{ padding: '0', height: '36px', cursor: 'none' }} value={magConfig.themeColor} onChange={e => setMagConfig(p => ({ ...p, themeColor: e.target.value }))} />
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <div style={{ flex: 1 }}>
                     <label className="label">Volume</label>
-                    <input type="text" className="input-field" defaultValue="Vol. XII" style={{ fontSize: '0.875rem' }} />
+                    <input type="text" className="input-field" value={magConfig.volume} onChange={e => setMagConfig(p => ({ ...p, volume: e.target.value }))} style={{ fontSize: '0.875rem' }} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="label">Year</label>
-                    <input type="text" className="input-field" defaultValue="2026" style={{ fontSize: '0.875rem' }} />
+                    <input type="text" className="input-field" value={magConfig.year} onChange={e => setMagConfig(p => ({ ...p, year: e.target.value }))} style={{ fontSize: '0.875rem' }} />
                   </div>
                 </div>
               </div>
@@ -301,14 +398,26 @@ const LabDashboard: React.FC = () => {
                 </div>
 
                 {genStatus === 'done' && (
-                  <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
-                    <button className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={handleDownload}>
-                      ↓ Download PDF
-                    </button>
-                    <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={() => { setGenStatus('idle'); setGenStep(0); setDownloadFile(null); }}>
-                      ↺ Regenerate
-                    </button>
-                  </div>
+                  <>
+                    <div style={{ marginTop: '1rem', display: 'flex', gap: '0.75rem' }}>
+                      <button className="btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={handleDownload}>
+                        ↓ Download PDF
+                      </button>
+                      {pdfUrl && (
+                        <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={() => window.open(pdfUrl, '_blank')}>
+                          ⧉ Open Full Screen
+                        </button>
+                      )}
+                      <button className="btn-secondary" style={{ flex: 1, justifyContent: 'center', fontSize: '0.85rem', cursor: 'none' }} onClick={() => { setGenStatus('idle'); setGenStep(0); setDownloadFile(null); setPdfUrl(null); }}>
+                        ↺ Regenerate
+                      </button>
+                    </div>
+                    {pdfUrl && (
+                      <div style={{ marginTop: '1.25rem', width: '100%', height: '600px', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                        <iframe src={pdfUrl} width="100%" height="100%" style={{ border: 'none' }} title="PDF Preview" />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

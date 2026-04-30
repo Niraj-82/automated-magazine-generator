@@ -118,8 +118,16 @@ async function startServer() {
     await connectPostgres();
     logger.info('✓ PostgreSQL connected');
 
+    // Sync models and seed demo users
+    const { syncModels } = require('./models/sql');
+    await syncModels();
+
     await connectMongo();
     logger.info('✓ MongoDB connected');
+
+    // Seed MongoDB templates
+    const { seedTemplates } = require('./models/mongo');
+    if (seedTemplates) await seedTemplates();
 
     app.listen(PORT, () => {
       logger.info(`✓ Server running on port ${PORT} [${process.env.NODE_ENV}]`);
