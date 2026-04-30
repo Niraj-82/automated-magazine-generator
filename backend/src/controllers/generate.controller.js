@@ -15,16 +15,30 @@ const outputsDir = path.join(__dirname, '..', '..', 'public', 'generated');
  */
 const generate = async (req, res) => {
   try {
-    const { title, department, volume, year, templateId } = req.body;
+    const { 
+      title, department, volume, year, templateId, themeColor, institution, 
+      principalMessage, principalName, principalPhoto,
+      hodMessage, hodName, hodPhoto,
+      achievements
+    } = req.body;
 
     logger.info(`Generate request by ${req.user.name || req.user.id}: title="${title}", dept="${department}"`);
 
     const result = await generateMagazinePDF({
       title: title || 'Tech Odyssey 2026',
-      department: department || 'All Departments',
+      department: department || 'College',
       volume: volume || 'Vol. XII',
       year: year || '2026',
       templateId: templateId || null,
+      themeColor,
+      institution,
+      principalMessage,
+      principalName,
+      principalPhoto,
+      hodMessage,
+      hodName,
+      hodPhoto,
+      achievements: achievements || []
     });
 
     // Audit log

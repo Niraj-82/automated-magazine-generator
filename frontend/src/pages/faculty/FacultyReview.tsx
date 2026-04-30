@@ -71,7 +71,7 @@ const FacultyReview: React.FC = () => {
   };
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 4rem)' }}>
       {/* Header */}
       <div style={{ marginBottom: '1.75rem' }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', marginBottom: '0.25rem' }}>
@@ -122,9 +122,9 @@ const FacultyReview: React.FC = () => {
       </div>
 
       {/* Kanban board */}
-      <div style={{ display: 'flex', gap: '1.25rem', overflowX: 'auto', paddingBottom: '1rem', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: '1.25rem', overflowX: 'auto', paddingBottom: '1rem', alignItems: 'flex-start', flex: 1, minHeight: 0 }}>
         {columns.map((col) => (
-          <div key={col.id} className="kanban-col">
+          <div key={col.id} className="kanban-col" style={{ height: '100%', maxHeight: 'none' }}>
             <div className="kanban-col-header">
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

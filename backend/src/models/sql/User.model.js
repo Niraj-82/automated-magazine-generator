@@ -35,6 +35,15 @@ const User = sequelize.define('User', {
   rollNumber: {
     type: DataTypes.STRING,
     allowNull: true,
+    validate: {
+      isStudentRollNumber(value) {
+        if (this.role === 'student') {
+          if (!value || !/^\d{7}$/.test(value)) {
+            throw new Error('Student roll number must be exactly 7 digits');
+          }
+        }
+      }
+    }
   },
   department: {
     type: DataTypes.STRING,
@@ -51,6 +60,13 @@ const User = sequelize.define('User', {
 }, {
   tableName: 'users',
   timestamps: true,
+  hooks: {
+    beforeValidate: (user) => {
+      if (user.role !== 'student') {
+        user.rollNumber = null;
+      }
+    }
+  }
 });
 
 User.prototype.toJSON = function () {

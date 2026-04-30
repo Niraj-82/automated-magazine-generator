@@ -29,11 +29,11 @@ const seedDemoUsers = async () => {
       name: 'Arjun Sharma',
       email: 'student@fcrit.ac.in',
       role: 'student',
-      rollNumber: 'TE-CE-042',
+      rollNumber: '1023456',
       department: 'Computer Engineering',
     },
     {
-      name: 'Prof. Meera Nair',
+      name: 'Dr. Smita Dange',
       email: 'faculty@fcrit.ac.in',
       role: 'faculty',
       department: 'Computer Engineering',

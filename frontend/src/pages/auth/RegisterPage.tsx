@@ -89,6 +89,10 @@ export default function RegisterPage() {
       setError('Passwords do not match.');
       return;
     }
+    if (!/^\d{7}$/.test(form.rollNumber)) {
+      setError('Roll number must be exactly 7 digits.');
+      return;
+    }
     if (form.password.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -179,8 +183,8 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Roll Number *</label>
-              <input type="text" name="rollNumber" className="input-field" placeholder="TE-CE-042" value={form.rollNumber} onChange={handleChange} required />
+              <label className="label">Roll Number (7 digits) *</label>
+              <input type="text" name="rollNumber" className="input-field" placeholder="e.g. 1023456" value={form.rollNumber} onChange={handleChange} required pattern="\d{7}" title="Must be exactly 7 digits" maxLength={7} />
             </div>
 
             <div>

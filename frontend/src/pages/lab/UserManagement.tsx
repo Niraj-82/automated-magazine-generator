@@ -16,7 +16,7 @@ const roleLabels: Record<string, string> = {
 const demoUsers: User[] = [
   { id: 'u1', name: 'Arjun Sharma', email: 'arjun@fcrit.ac.in', role: 'student', rollNumber: 'TE-CE-042', department: 'Computer Engineering' },
   { id: 'u2', name: 'Priya Menon', email: 'priya@fcrit.ac.in', role: 'student', rollNumber: 'TE-CE-018', department: 'Computer Engineering' },
-  { id: 'u3', name: 'Prof. Meera Nair', email: 'meera@fcrit.ac.in', role: 'faculty', department: 'Computer Engineering' },
+  { id: 'u3', name: 'Dr. Smita Dange', email: 'meera@fcrit.ac.in', role: 'faculty', department: 'Computer Engineering' },
   { id: 'u4', name: 'Rohan Patil', email: 'rohan@fcrit.ac.in', role: 'student', rollNumber: 'TE-CE-027', department: 'Computer Engineering' },
   { id: 'u5', name: 'Sneha Joshi', email: 'sneha@fcrit.ac.in', role: 'student', rollNumber: 'TE-CE-031', department: 'Computer Engineering' },
   { id: 'u6', name: 'Amit Desai', email: 'amit@fcrit.ac.in', role: 'student', rollNumber: 'TE-CE-009', department: 'Computer Engineering' },
@@ -41,13 +41,19 @@ const AddUserModal: React.FC<ModalProps> = ({ onClose, onSave, saving }) => {
           <div><label className="label">Password *</label><input className="input-field" type="password" value={f.password} onChange={e => setF(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" /></div>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <div style={{ flex: 1 }}><label className="label">Role</label><select className="input-field" value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value }))}><option value="student">Student</option><option value="faculty">Faculty</option><option value="lab_assistant">Lab Assistant</option></select></div>
-            <div style={{ flex: 1 }}><label className="label">Roll Number</label><input className="input-field" value={f.rollNumber} onChange={e => setF(p => ({ ...p, rollNumber: e.target.value }))} placeholder="TE-CE-XXX" /></div>
+            <div style={{ flex: 1 }}><label className="label">Roll Number</label><input className="input-field" value={f.rollNumber} onChange={e => setF(p => ({ ...p, rollNumber: e.target.value }))} placeholder={f.role === 'student' ? "e.g. 1023456" : "N/A"} disabled={f.role !== 'student'} /></div>
           </div>
           <div><label className="label">Department</label><select className="input-field" value={f.department} onChange={e => setF(p => ({ ...p, department: e.target.value }))}><option>Computer Engineering</option><option>Information Technology</option><option>Electronics</option></select></div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
           <button className="btn-secondary" onClick={onClose} style={{ cursor: 'none' }}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave(f)} disabled={!f.name || !f.email || !f.password || saving} style={{ cursor: 'none' }}>{saving ? '...' : '+ Add User'}</button>
+          <button className="btn-primary" onClick={() => {
+            if (f.role === 'student' && !/^\d{7}$/.test(f.rollNumber)) {
+              toast.error('Student roll number must be exactly 7 digits');
+              return;
+            }
+            onSave(f);
+          }} disabled={!f.name || !f.email || !f.password || saving} style={{ cursor: 'none' }}>{saving ? '...' : '+ Add User'}</button>
         </div>
       </div>
     </>
@@ -69,12 +75,18 @@ const EditDrawer: React.FC<DrawerProps> = ({ user: u, onClose, onSave, saving })
           <div><label className="label">Name</label><input className="input-field" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} /></div>
           <div><label className="label">Email</label><input className="input-field" value={f.email} onChange={e => setF(p => ({ ...p, email: e.target.value }))} /></div>
           <div><label className="label">Role</label><select className="input-field" value={f.role} onChange={e => setF(p => ({ ...p, role: e.target.value }))}><option value="student">Student</option><option value="faculty">Faculty</option><option value="lab_assistant">Lab Assistant</option></select></div>
-          <div><label className="label">Roll Number</label><input className="input-field" value={f.rollNumber} onChange={e => setF(p => ({ ...p, rollNumber: e.target.value }))} /></div>
+          <div><label className="label">Roll Number</label><input className="input-field" value={f.rollNumber} onChange={e => setF(p => ({ ...p, rollNumber: e.target.value }))} placeholder={f.role === 'student' ? "e.g. 1023456" : "N/A"} disabled={f.role !== 'student'} /></div>
           <div><label className="label">Department</label><input className="input-field" value={f.department} onChange={e => setF(p => ({ ...p, department: e.target.value }))} /></div>
         </div>
         <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', gap: '0.75rem' }}>
           <button className="btn-secondary" onClick={onClose} style={{ flex: 1, justifyContent: 'center', cursor: 'none' }}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave({ name: f.name, email: f.email, role: f.role as UserRole, rollNumber: f.rollNumber, department: f.department })} disabled={saving} style={{ flex: 1, justifyContent: 'center', cursor: 'none' }}>{saving ? '...' : '✓ Save'}</button>
+          <button className="btn-primary" onClick={() => {
+            if (f.role === 'student' && !/^\d{7}$/.test(f.rollNumber)) {
+              toast.error('Student roll number must be exactly 7 digits');
+              return;
+            }
+            onSave({ name: f.name, email: f.email, role: f.role as UserRole, rollNumber: f.rollNumber, department: f.department });
+          }} disabled={saving} style={{ flex: 1, justifyContent: 'center', cursor: 'none' }}>{saving ? '...' : '✓ Save'}</button>
         </div>
       </div>
     </>

@@ -21,7 +21,12 @@ function chunkParagraphs(text = '') {
 }
 
 function buildMagazineHTML(submissions, config, faculty) {
-  const { title, tagline, department, institution, hodName, year, volume, templateId, themeColor } = config;
+  const { 
+    title, tagline, department, institution, year, volume, templateId, themeColor,
+    principalMessage, principalName, principalPhoto,
+    hodMessage, hodName, hodPhoto,
+    achievements
+  } = config;
   
   const theme = {
     bg: templateId === 't2' || templateId === 't4' ? '#ffffff' : '#0a0a0a',
@@ -98,24 +103,40 @@ function buildMagazineHTML(submissions, config, faculty) {
     </div>
   `;
 
-  // C. HOD Message
-  const hodHTML = `
-    <div style="page-break-after:always; width:100%; min-height:100vh; padding:6rem 4rem; background:${theme.bg}; color:${theme.text}; display:flex; align-items:center; gap:4rem;">
-      <div style="flex:0 0 35%; display:flex; flex-direction:column; align-items:center;">
-        <div style="width:250px; height:250px; border-radius:50%; background:#333; border:4px solid ${theme.customColor}; margin-bottom:2rem;"></div>
-        <div style="font-family:'Bebas Neue', cursive; font-size:2rem; letter-spacing:0.05em;">${escapeHtml(hodName)}</div>
-        <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase; margin-top:0.5rem; text-align:center;">Head of Department<br/>${escapeHtml(department)}</div>
-      </div>
-      <div style="flex:1;">
-        <h2 style="font-family:'Crimson Text', serif; font-size:2.5rem; font-style:italic; margin-bottom:2rem; color:${theme.customColor};">Message from the Desk</h2>
-        <div style="font-family:'Crimson Text', serif; font-size:1.1rem; line-height:1.8; text-align:justify;">
-          <p style="margin-bottom:1rem;">Welcome to the ${escapeHtml(volume)} of ${escapeHtml(title)}. It gives me immense pleasure to present this edition, which reflects the technical prowess, creativity, and dedication of our students and faculty.</p>
-          <p style="margin-bottom:1rem;">In an era of rapid technological advancement, it is crucial to stay abreast of the latest developments. This magazine serves as a platform to share knowledge, showcase achievements, and inspire innovation. The diverse range of articles, from deep technical dives to cultural event highlights, is a testament to the holistic development we strive for at ${escapeHtml(institution)}.</p>
-          <p style="margin-bottom:1rem;">I commend the editorial team and all contributors for their hard work. May this edition ignite new ideas and encourage continuous learning.</p>
+  // C. Messages
+  let messagesHTML = '';
+
+  if (principalMessage) {
+    messagesHTML += `
+      <div style="page-break-after:always; width:100%; min-height:100vh; padding:6rem 4rem; background:${theme.bg}; color:${theme.text}; display:flex; align-items:center; gap:4rem;">
+        <div style="flex:0 0 35%; display:flex; flex-direction:column; align-items:center;">
+          ${principalPhoto ? `<img src="${escapeHtml(principalPhoto)}" style="width:250px; height:250px; border-radius:50%; object-fit:cover; border:4px solid ${theme.customColor}; margin-bottom:2rem;" />` : `<div style="width:250px; height:250px; border-radius:50%; background:#333; border:4px solid ${theme.customColor}; margin-bottom:2rem;"></div>`}
+          <div style="font-family:'Bebas Neue', cursive; font-size:2rem; letter-spacing:0.05em; text-align:center;">${escapeHtml(principalName || 'Principal')}</div>
+          <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase; margin-top:0.5rem; text-align:center;">Principal<br/>${escapeHtml(institution)}</div>
+        </div>
+        <div style="flex:1;">
+          <h2 style="font-family:'Crimson Text', serif; font-size:2.5rem; font-style:italic; margin-bottom:2rem; color:${theme.customColor};">Message from the Principal</h2>
+          <div style="font-family:'Crimson Text', serif; font-size:1.1rem; line-height:1.8; text-align:justify; white-space:pre-wrap;">${escapeHtml(principalMessage)}</div>
         </div>
       </div>
-    </div>
-  `;
+    `;
+  }
+
+  if (department !== 'College' && hodMessage) {
+    messagesHTML += `
+      <div style="page-break-after:always; width:100%; min-height:100vh; padding:6rem 4rem; background:${theme.bg}; color:${theme.text}; display:flex; align-items:center; gap:4rem;">
+        <div style="flex:0 0 35%; display:flex; flex-direction:column; align-items:center;">
+          ${hodPhoto ? `<img src="${escapeHtml(hodPhoto)}" style="width:250px; height:250px; border-radius:50%; object-fit:cover; border:4px solid ${theme.customColor}; margin-bottom:2rem;" />` : `<div style="width:250px; height:250px; border-radius:50%; background:#333; border:4px solid ${theme.customColor}; margin-bottom:2rem;"></div>`}
+          <div style="font-family:'Bebas Neue', cursive; font-size:2rem; letter-spacing:0.05em; text-align:center;">${escapeHtml(hodName || 'Head of Department')}</div>
+          <div style="font-family:'Space Mono', monospace; font-size:0.8rem; color:${theme.customColor}; text-transform:uppercase; margin-top:0.5rem; text-align:center;">Head of Department<br/>${escapeHtml(department)}</div>
+        </div>
+        <div style="flex:1;">
+          <h2 style="font-family:'Crimson Text', serif; font-size:2.5rem; font-style:italic; margin-bottom:2rem; color:${theme.customColor};">Message from the HOD</h2>
+          <div style="font-family:'Crimson Text', serif; font-size:1.1rem; line-height:1.8; text-align:justify; white-space:pre-wrap;">${escapeHtml(hodMessage)}</div>
+        </div>
+      </div>
+    `;
+  }
 
   // D & E & G. Section Headers and Article Pages
   let bodyHTML = '';
@@ -131,29 +152,9 @@ function buildMagazineHTML(submissions, config, faculty) {
         </div>
       `;
 
-      // E. Article Pages / G. Achievements
-      if (cat === 'achievements') {
-        // G. Achievements Grid
-        bodyHTML += `
-          <div style="page-break-after:always; width:100%; min-height:100vh; padding:4rem; background:${theme.bg}; color:${theme.text};">
-            <h2 style="font-family:'Bebas Neue', cursive; font-size:3rem; margin-bottom:2rem; border-bottom:1px solid #333; padding-bottom:0.5rem;">HALL OF FAME</h2>
-            <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:2rem;">
-              ${grouped[cat].map(a => `
-                <div style="background:${theme.cardBg}; border-radius:8px; overflow:hidden;">
-                  <div style="height:200px; background:#333;"></div>
-                  <div style="padding:1.5rem;">
-                    <h3 style="font-family:'Bebas Neue', cursive; font-size:1.5rem; margin-bottom:0.5rem; letter-spacing:0.02em;">${escapeHtml(a.title)}</h3>
-                    <div style="font-family:'Crimson Text', serif; font-size:0.9rem; line-height:1.5; margin-bottom:1rem;">${escapeHtml(a.content.substring(0, 120))}...</div>
-                    <div style="font-family:'Space Mono', monospace; font-size:0.7rem; color:${theme.customColor}; text-transform:uppercase;">${escapeHtml(a.authorName)}</div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
-      } else {
-        // Regular Articles
-        grouped[cat].forEach(sub => {
+      // E. Article Pages
+      // Regular Articles
+      grouped[cat].forEach(sub => {
           const layout = sub.labOverrideTemplate || sub.chosenTemplate || 'single_column';
           const paras = chunkParagraphs(sub.content);
           
@@ -206,7 +207,6 @@ function buildMagazineHTML(submissions, config, faculty) {
             </div>
           `;
         });
-      }
     }
   });
 
@@ -228,6 +228,42 @@ function buildMagazineHTML(submissions, config, faculty) {
     </div>
   `;
 
+  // G. Achievements
+  let achievementsHTML = '';
+  if (achievements && achievements.length > 0) {
+    achievementsHTML = `
+      <div style="page-break-after:always; width:100%; min-height:100vh; padding:4rem; background:${theme.bg}; color:${theme.text};">
+        <h2 style="font-family:'Bebas Neue', cursive; font-size:4rem; margin-bottom:3rem; text-align:center; letter-spacing:0.05em; color:${theme.customColor};">ACHIEVEMENTS</h2>
+        <div style="max-width:800px; margin:0 auto;">
+          <table style="width:100%; border-collapse:collapse; font-family:'Space Mono', monospace; font-size:0.9rem;">
+            <thead>
+              <tr style="border-bottom:2px solid ${theme.customColor};">
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">SR NO</th>
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">STUDENT NAME</th>
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">YEAR</th>
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">ACTIVITY</th>
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">ORGANIZER</th>
+                <th style="padding:1rem; text-align:left; color:${theme.customColor};">AWARD</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${achievements.map(ach => `
+                <tr style="border-bottom:1px solid #333;">
+                  <td style="padding:1rem; vertical-align:top; font-weight:700;">${escapeHtml(ach.sr)}</td>
+                  <td style="padding:1rem; vertical-align:top; font-weight:700;">${escapeHtml(ach.name)}</td>
+                  <td style="padding:1rem; vertical-align:top; color:${theme.text}; opacity:0.8;">${escapeHtml(ach.year)}</td>
+                  <td style="padding:1rem; vertical-align:top; color:${theme.text}; opacity:0.8;">${escapeHtml(ach.activity)}</td>
+                  <td style="padding:1rem; vertical-align:top; color:${theme.text}; opacity:0.8;">${escapeHtml(ach.organizer)}</td>
+                  <td style="padding:1rem; vertical-align:top; color:${theme.customColor}; font-weight:700;">${escapeHtml(ach.award)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   // H. Back Cover
   const backCoverHTML = `
     <div style="page-break-after:avoid; width:100%; height:100vh; background:#000; color:#fff; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:4rem;">
@@ -243,26 +279,25 @@ function buildMagazineHTML(submissions, config, faculty) {
   `;
 
   return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(title)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { size: A4; margin: 0; }
-  </style>
-</head>
-<body>
-  ${coverHTML}
-  ${tocHTML}
-  ${hodHTML}
-  ${bodyHTML}
-  ${facultyHTML}
-  ${backCoverHTML}
-</body>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; }
+      body { margin:0; padding:0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pull-quote { font-family:'Crimson Text', serif; font-size:1.8rem; font-style:italic; color:${theme.customColor}; text-align:center; padding:2rem; border-top:1px solid #333; border-bottom:1px solid #333; margin:2rem 0; }
+    </style>
+  </head>
+  <body>
+    ${coverHTML}
+    ${tocHTML}
+    ${messagesHTML}
+    ${bodyHTML}
+    ${facultyHTML}
+    ${achievementsHTML}
+    ${backCoverHTML}
+  </body>
 </html>`;
 }
 

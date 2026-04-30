@@ -55,9 +55,19 @@ const updateUser = async (req, res) => {
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
-    if (rollNumber !== undefined) updates.rollNumber = rollNumber;
     if (department !== undefined) updates.department = department;
     if (isActive !== undefined) updates.isActive = isActive;
+
+    const finalRole = updates.role || user.role;
+    if (finalRole === 'student') {
+      const finalRoll = rollNumber !== undefined ? rollNumber : user.rollNumber;
+      if (!/^\d{7}$/.test(finalRoll)) {
+        return res.status(400).json({ success: false, error: 'Student roll number must be exactly 7 digits.' });
+      }
+      updates.rollNumber = finalRoll;
+    } else {
+      updates.rollNumber = null;
+    }
 
     await user.update(updates);
     await AuditLog.logAction('USER_UPDATE', req.user.id, { targetUserId: user.id, updates }, req.ip);
@@ -80,14 +90,23 @@ const deactivateUser = async (req, res) => {
 };
 
 // Improvement 2: Admin-only faculty account creation
-const createFaculty = async (req, res) => {
+const createUserByAdmin = async (req, res) => {
   try {
-    const { name, email, password, department } = req.body;
+    const { name, email, password, department, role, rollNumber } = req.body;
 
-    if (!name || !email || !password || !department) {
-      return res.status(400).json({ success: false, error: 'Name, email, password and department are required.' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
     }
 
+    const assignedRole = role || 'student';
+    let finalRollNumber = null;
+
+    if (assignedRole === 'student') {
+      if (!/^\d{7}$/.test(rollNumber)) {
+        return res.status(400).json({ success: false, error: 'Student roll number must be exactly 7 digits.' });
+      }
+      finalRollNumber = rollNumber;
+    }
     const existing = await User.findOne({ where: { email: email.toLowerCase() } });
     if (existing) {
       return res.status(400).json({ success: false, error: 'A user with this email already exists.' });
@@ -96,29 +115,30 @@ const createFaculty = async (req, res) => {
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const faculty = await User.create({
+    const newUser = await User.create({
       name, email, passwordHash,
-      role: 'faculty',
+      role: assignedRole,
       department,
+      rollNumber: finalRollNumber,
     });
 
-    await AuditLog.logAction('USER_REGISTER', req.user.id, { email: faculty.email, role: 'faculty', createdBy: req.user.id }, req.ip);
+    await AuditLog.logAction('USER_REGISTER', req.user.id, { email: newUser.email, role: assignedRole, createdBy: req.user.id }, req.ip);
 
     // Welcome notification
     try {
       await Notification.create({
-        userId: faculty.id,
-        type: 'info',
+        userId: newUser.id,
+        type: 'system',
         title: 'Welcome to Tech Odyssey',
-        message: `Your faculty account has been created. You can now review student submissions.`,
+        message: `Your account has been created by an administrator.`,
       });
     } catch (_e) { /* non-critical */ }
 
-    return res.status(201).json({ success: true, data: faculty });
+    return res.status(201).json({ success: true, data: newUser });
   } catch (error) {
     return res.status(500).json({ success: false, error: 'Server error creating faculty account.' });
   }
 };
 
-module.exports = { getAllUsers, getUserById, updateUser, deactivateUser, createFaculty };
+module.exports = { getAllUsers, getUserById, updateUser, deactivateUser, createUserByAdmin };
 

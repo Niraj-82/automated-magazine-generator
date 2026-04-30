@@ -122,10 +122,7 @@ export const userService = {
     api.patch<ApiResponse<User>>(`/users/${id}`, { isActive: false }),
 
   create: (data: { name: string; email: string; password: string; role: string; rollNumber?: string; department?: string }) =>
-    api.post<ApiResponse<User>>('/auth/register', data),
-
-  createFaculty: (data: { name: string; email: string; password: string; department: string }) =>
-    api.post<ApiResponse<User>>('/users/create-faculty', data),
+    api.post<ApiResponse<User>>('/users', data),
 };
 
 // ── Notification Service ──
@@ -157,7 +154,7 @@ export const templateService = {
 
 // ── Generate Service ──
 export const generateService = {
-  generate: (config: { templateId: string; title?: string; department?: string; volume?: string; year?: string }) =>
+  generate: (config: any) =>
     api.post<ApiResponse<{ filename: string; path: string }>>('/generate', config),
 
   download: (filename: string) =>

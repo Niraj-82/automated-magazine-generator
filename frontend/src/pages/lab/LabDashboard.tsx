@@ -44,14 +44,21 @@ const LabDashboard: React.FC = () => {
 
   const [magConfig, setMagConfig] = useState({
     title: 'Tech Odyssey 2026',
-    department: 'Computer Engineering',
+    department: 'College',
     volume: 'Vol. XII',
     year: '2026',
     tagline: 'Innovate, Inspire, Ignite',
     themeColor: '#6366F1',
     institution: 'Fr. C. Rodrigues Institute of Technology',
-    hodName: 'Dr. John Doe',
+    hodName: 'Dr. Smita Dange',
+    hodPhoto: '',
+    principalName: 'Dr. S. M. Khot',
+    principalPhoto: '',
+    principalMessage: '',
+    hodMessage: '',
   });
+
+  const [achievements, setAchievements] = useState<{ id: string; sr: string; name: string; year: string; activity: string; organizer: string; award: string }[]>([]);
 
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [apiStats, setApiStats] = useState<any>(null);
@@ -90,7 +97,8 @@ const LabDashboard: React.FC = () => {
     try {
       const genPromise = generateService.generate({
         templateId: selectedTemplate,
-        ...magConfig
+        ...magConfig,
+        achievements
       });
 
       // Animate steps while waiting
@@ -195,7 +203,7 @@ const LabDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'generate' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', gap: '1.5rem', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 440px', gap: '1.5rem', alignItems: 'start' }}>
           {/* Left: Template selector */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -285,33 +293,51 @@ const LabDashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* Student Achievements */}
+          <div className="card" style={{ gridColumn: '1 / -1', marginTop: '1.5rem', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem' }}>Student Achievements</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Record of extracurricular and co-curricular awards for this edition.</p>
+              </div>
+              <button className="btn-secondary" onClick={() => setAchievements([...achievements, { id: Math.random().toString(), sr: (achievements.length + 1).toString(), name: '', year: '', activity: '', organizer: '', award: '' }])} style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', cursor: 'none' }}>+ Add Row</button>
+            </div>
+            
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', textAlign: 'left', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-subtle)' }}>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Sr No.</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Name of Student</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Year</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Activity / Event</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Organizing Body</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Award Won</th>
+                    <th style={{ padding: '0.75rem', fontWeight: 600 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {achievements.length === 0 ? (
+                    <tr><td colSpan={7} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>No achievements added yet.</td></tr>
+                  ) : achievements.map((ach, idx) => (
+                    <tr key={ach.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.sr} onChange={(e) => { const newA = [...achievements]; newA[idx].sr = e.target.value; setAchievements(newA); }} /></td>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.name} onChange={(e) => { const newA = [...achievements]; newA[idx].name = e.target.value; setAchievements(newA); }} placeholder="Student Name" /></td>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.year} onChange={(e) => { const newA = [...achievements]; newA[idx].year = e.target.value; setAchievements(newA); }} placeholder="FE/SE/TE/BE" /></td>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.activity} onChange={(e) => { const newA = [...achievements]; newA[idx].activity = e.target.value; setAchievements(newA); }} placeholder="Event Name" /></td>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.organizer} onChange={(e) => { const newA = [...achievements]; newA[idx].organizer = e.target.value; setAchievements(newA); }} placeholder="Organizer" /></td>
+                      <td style={{ padding: '0.5rem' }}><input className="input-field" style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem' }} value={ach.award} onChange={(e) => { const newA = [...achievements]; newA[idx].award = e.target.value; setAchievements(newA); }} placeholder="1st Prize" /></td>
+                      <td style={{ padding: '0.5rem', textAlign: 'center' }}><button onClick={() => setAchievements(achievements.filter(a => a.id !== ach.id))} style={{ color: 'var(--status-blocked)', background: 'transparent', border: 'none', cursor: 'none', fontSize: '1rem', padding: '0.2rem' }}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
           {/* Right: Generation panel */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Live PDF preview mock */}
-            <div className="card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.9rem' }}>Live Preview</h3>
-                <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
-                  {templates.find((t) => t._id === selectedTemplate)?.name}
-                </span>
-              </div>
 
-              <div
-                style={{
-                  background: 'white',
-                  borderRadius: 'var(--radius-sm)',
-                  aspectRatio: '3/4',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                }}
-              >
-                <PDFPreview templateId={selectedTemplate} />
-              </div>
-            </div>
 
             {/* Magazine config */}
             <div className="card">
@@ -332,15 +358,18 @@ const LabDashboard: React.FC = () => {
                     <label className="label">Institution</label>
                     <input type="text" className="input-field" value={magConfig.institution} onChange={e => setMagConfig(p => ({ ...p, institution: e.target.value }))} style={{ fontSize: '0.875rem' }} />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label className="label">HOD Name</label>
-                    <input type="text" className="input-field" value={magConfig.hodName} onChange={e => setMagConfig(p => ({ ...p, hodName: e.target.value }))} style={{ fontSize: '0.875rem' }} />
-                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <div style={{ flex: 1 }}>
-                    <label className="label">Department</label>
-                    <input type="text" className="input-field" value={magConfig.department} onChange={e => setMagConfig(p => ({ ...p, department: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                    <label className="label">Scope / Department</label>
+                    <select className="input-field" value={magConfig.department} onChange={e => setMagConfig(p => ({ ...p, department: e.target.value }))} style={{ fontSize: '0.875rem' }}>
+                      <option value="College">College (All Departments)</option>
+                      <option value="Computer Engineering">Computer Engineering</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Electronics & Telecommunication">Electronics & Telecommunication</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Electrical Engineering">Electrical Engineering</option>
+                    </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="label">Theme Colour</label>
@@ -357,6 +386,54 @@ const LabDashboard: React.FC = () => {
                     <input type="text" className="input-field" value={magConfig.year} onChange={e => setMagConfig(p => ({ ...p, year: e.target.value }))} style={{ fontSize: '0.875rem' }} />
                   </div>
                 </div>
+
+                {/* Messages depending on scope */}
+                <div>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="label">Principal Name</label>
+                      <input type="text" className="input-field" value={magConfig.principalName} onChange={e => setMagConfig(p => ({ ...p, principalName: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="label">Principal Photo</label>
+                      <input type="file" accept="image/*" className="input-field" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setMagConfig(p => ({ ...p, principalPhoto: reader.result as string }));
+                          reader.readAsDataURL(file);
+                        }
+                      }} style={{ fontSize: '0.875rem', padding: '0.5rem' }} />
+                      {magConfig.principalPhoto && <div style={{marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--status-clean)'}}>✓ Photo selected</div>}
+                    </div>
+                  </div>
+                  <label className="label">Principal Message</label>
+                  <textarea className="input-field" value={magConfig.principalMessage} onChange={e => setMagConfig(p => ({ ...p, principalMessage: e.target.value }))} style={{ minHeight: '60px', fontSize: '0.875rem' }} placeholder="Message from the Principal..." />
+                </div>
+                {magConfig.department !== 'College' && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label className="label">HOD Name</label>
+                        <input type="text" className="input-field" value={magConfig.hodName} onChange={e => setMagConfig(p => ({ ...p, hodName: e.target.value }))} style={{ fontSize: '0.875rem' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label className="label">HOD Photo</label>
+                        <input type="file" accept="image/*" className="input-field" onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setMagConfig(p => ({ ...p, hodPhoto: reader.result as string }));
+                            reader.readAsDataURL(file);
+                          }
+                        }} style={{ fontSize: '0.875rem', padding: '0.5rem' }} />
+                        {magConfig.hodPhoto && <div style={{marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--status-clean)'}}>✓ Photo selected</div>}
+                      </div>
+                    </div>
+                    <label className="label">HOD Message</label>
+                    <textarea className="input-field" value={magConfig.hodMessage} onChange={e => setMagConfig(p => ({ ...p, hodMessage: e.target.value }))} style={{ minHeight: '60px', fontSize: '0.875rem' }} placeholder="Message from the HOD..." />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -550,7 +627,7 @@ const UserManagement: React.FC = () => {
   const users = [
     { name: 'Arjun Sharma', roll: 'TE-CE-042', role: 'student', status: 'active', submissions: 3 },
     { name: 'Priya Menon', roll: 'TE-CE-018', role: 'student', status: 'active', submissions: 2 },
-    { name: 'Prof. Meera Nair', roll: '—', role: 'faculty', status: 'active', submissions: 0 },
+    { name: 'Dr. Smita Dange', roll: '—', role: 'faculty', status: 'active', submissions: 0 },
     { name: 'Rohan Patil', roll: 'TE-CE-027', role: 'student', status: 'active', submissions: 2 },
     { name: 'Sneha Joshi', roll: 'TE-CE-031', role: 'student', status: 'active', submissions: 1 },
   ];

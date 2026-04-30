@@ -51,6 +51,13 @@ const register = async (req, res) => {
       });
     }
 
+    if (!/^\d{7}$/.test(rollNumber)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Student roll number must be exactly 7 digits.'
+      });
+    }
+
     // Check if user exists
     const userExists = await User.findOne({ where: { email: email.toLowerCase() } });
     if (userExists) {

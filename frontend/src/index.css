@@ -464,8 +464,8 @@ select.input-field option { background: var(--bg-card); }
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  min-width: 320px;
-  max-width: 360px;
+  min-width: 240px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 180px);

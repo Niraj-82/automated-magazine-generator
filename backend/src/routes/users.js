@@ -5,7 +5,7 @@ const {
   getUserById,
   updateUser,
   deactivateUser,
-  createFaculty,
+  createUserByAdmin,
 } = require('../controllers/users.controller');
 
 const router = express.Router();
@@ -13,12 +13,10 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/', requireRole('admin', 'lab_assistant', 'faculty'), getAllUsers);
+router.post('/', requireRole('lab_assistant', 'admin'), createUserByAdmin);
 router.get('/:id', getUserById);
 router.patch('/:id', requireRole('admin', 'lab_assistant'), updateUser);
 router.delete('/:id', requireRole('admin', 'lab_assistant'), deactivateUser);
-
-// Improvement 2: Lab assistant creates faculty accounts
-router.post('/create-faculty', requireRole('lab_assistant', 'admin'), createFaculty);
 
 module.exports = router;
 
